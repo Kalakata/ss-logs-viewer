@@ -57,6 +57,16 @@ TYPE_LABELS = {
 
 
 def _load_credentials():
+    # Prefer env vars (production), fall back to files (local dev)
+    bearer_token = settings.SS_BEARER_TOKEN
+    if bearer_token:
+        cfg = {
+            "client_id": settings.SS_CLIENT_ID,
+            "client_secret": settings.SS_CLIENT_SECRET,
+            "account_id": settings.SS_ACCOUNT_ID,
+        }
+        return bearer_token, cfg
+
     ss_dir = settings.SS_LOGS_DIR
     with open(os.path.join(ss_dir, "token.txt"), "r") as f:
         bearer_token = f.read().strip()
