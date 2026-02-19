@@ -41,7 +41,7 @@
   .qty-change { color: #888; font-size: 11px; }
   .order-id { font-size: 11px; color: #555; }
   .shipment-id { font-size: 10px; color: #999; }
-  .desc { color: #666; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .desc { color: #666; word-break: break-word; }
 
   .asin-highlight > td { background: #dbeafe !important; }
 
@@ -108,7 +108,7 @@
         <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
         <td>{% if log.order_number %}<span class="order-id">{{ log.order_number|truncatechars:30 }}</span>{% endif %}{% if log.order_shipment_id %}<br><span class="shipment-id">#{{ log.order_shipment_id }}</span>{% endif %}</td>
         <td style="white-space:nowrap;">{{ log.user_name }}</td>
-        <td class="desc" title="{{ log.description }}">{{ log.description }}</td>
+        <td class="desc">{{ log.description }}</td>
       </tr>
       {% endfor %}
     </tbody>
