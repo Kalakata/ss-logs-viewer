@@ -1,0 +1,94 @@
+{% extends "logs/base.html" %}
+
+{% block title %}Search Product Groups — SS Logs Viewer{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <h2 class="mb-3">Search Product Groups</h2>
+    <input type="text" id="search-input" class="form-control form-control-lg"
+           placeholder="Search by product group name or barcode..." autofocus>
+    <div id="total-count" class="text-muted small mt-1 d-none"></div>
+    <div id="results" class="list-group mt-2"></div>
+    <div id="no-results" class="text-muted mt-2 d-none">No groups found.</div>
+    <button id="load-more" class="btn btn-outline-primary w-100 mt-2 d-none">Load more</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const input = document.getElementById('search-input');
+  const resultsDiv = document.getElementById('results');
+  const noResults = document.getElementById('no-results');
+  const loadMoreBtn = document.getElementById('load-more');
+  const totalCount = document.getElementById('total-count');
+  let timer = null;
+  let currentQuery = '';
+  let currentPage = 1;
+
+  input.addEventListener('input', function() {
+    clearTimeout(timer);
+    const q = this.value.trim();
+    if (q.length < 2) {
+      resultsDiv.replaceChildren();
+      noResults.classList.add('d-none');
+      loadMoreBtn.classList.add('d-none');
+      totalCount.classList.add('d-none');
+      return;
+    }
+    currentPage = 1;
+    currentQuery = q;
+    timer = setTimeout(() => fetchGroups(q, 1, true), 300);
+  });
+
+  loadMoreBtn.addEventListener('click', function() {
+    currentPage++;
+    fetchGroups(currentQuery, currentPage, false);
+  });
+
+  function fetchGroups(q, page, clear) {
+    fetch('/api/search-groups/?q=' + encodeURIComponent(q) + '&page=' + page)
+      .then(r => r.json())
+      .then(data => {
+        if (clear) resultsDiv.replaceChildren();
+
+        if (data.total === 0) {
+          noResults.classList.remove('d-none');
+          loadMoreBtn.classList.add('d-none');
+          totalCount.classList.add('d-none');
+          return;
+        }
+
+        noResults.classList.add('d-none');
+        totalCount.textContent = data.total + ' groups found';
+        totalCount.classList.remove('d-none');
+
+        data.results.forEach(g => {
+          const a = document.createElement('a');
+          a.href = '/group/' + g.id + '/logs/';
+          a.className = 'list-group-item list-group-item-action d-flex justify-content-between align-items-center search-result';
+
+          const nameSpan = document.createElement('span');
+          nameSpan.textContent = g.name;
+
+          const badge = document.createElement('span');
+          badge.className = 'badge bg-primary rounded-pill';
+          badge.textContent = g.product_count + ' ASINs';
+
+          a.appendChild(nameSpan);
+          a.appendChild(badge);
+          resultsDiv.appendChild(a);
+        });
+
+        if (data.has_next) {
+          loadMoreBtn.classList.remove('d-none');
+        } else {
+          loadMoreBtn.classList.add('d-none');
+        }
+      });
+  }
+})();
+</script>
+{% endblock %}

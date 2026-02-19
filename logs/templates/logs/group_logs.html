@@ -1,0 +1,187 @@
+{% extends "logs/base.html" %}
+{% load logs_filters %}
+
+{% block title %}{{ group.name }} — SS Logs Viewer{% endblock %}
+
+{% block extra_css %}
+<style>
+  .table-logs th { white-space: nowrap; font-size: 0.8rem; }
+  .table-logs td { font-size: 0.85rem; vertical-align: middle; }
+  .asin-badge { font-size: 0.85rem; }
+  .diff-positive { color: #198754; font-weight: 700; }
+  .diff-negative { color: #dc3545; font-weight: 700; }
+  .diff-zero { color: #6c757d; }
+  .movement-row > td { background-color: #fff3cd !important; }
+  .movement-mismatch > td { background-color: #f8d7da !important; }
+  .movement-marker {
+    display: inline-block;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #fd7e14;
+    margin-right: 4px;
+  }
+  .type-badge { font-size: 0.75rem; }
+  .qty-change { font-size: 0.8rem; color: #555; white-space: nowrap; }
+  .filter-bar { position: sticky; top: 56px; z-index: 10; background: #fff; padding: 10px 0; border-bottom: 1px solid #dee2e6; }
+  .asin-highlight > td { background-color: #cfe2ff !important; }
+  .asin-clickable { cursor: pointer; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <a href="/" class="btn btn-outline-secondary btn-sm">&larr; Back to search</a>
+</div>
+
+<h2>{{ group.name }}</h2>
+
+<div class="mb-3">
+  {% for product in products %}
+    <span class="badge bg-secondary asin-badge me-1">{{ product.asin }} <small>(x{{ product.bundle_qty|default_if_none:"1" }})</small></span>
+  {% endfor %}
+</div>
+
+{% if error %}
+  <div class="alert alert-danger">Error fetching logs: {{ error }}</div>
+{% endif %}
+
+{% if logs %}
+  <div class="filter-bar mb-2">
+    <div class="row g-2 align-items-center">
+      <div class="col-auto">
+        <span class="text-muted">{{ logs|length }} log entries</span>
+        {% if movement_count %}
+          <span class="ms-2 badge bg-warning text-dark">{{ movement_count }} movement groups detected</span>
+        {% endif %}
+      </div>
+      <div class="col-auto">
+        <select id="filter-type" class="form-select form-select-sm">
+          <option value="">All event types</option>
+          <option value="movement">Movements only</option>
+          <option value="warehouse">Warehouse impact only (diff != 0)</option>
+          {% for type_id, type_label in event_types %}
+            <option value="type_{{ type_id }}">{{ type_label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-auto">
+        <button id="btn-sanitize" class="btn btn-sm btn-outline-warning">Sanitize</button>
+      </div>
+      <div class="col-auto">
+        <select id="filter-asin" class="form-select form-select-sm">
+          <option value="">All ASINs</option>
+          {% for asin in asin_list %}
+            <option value="{{ asin }}">{{ asin }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-sm table-logs table-hover" id="logs-table">
+      <thead class="table-dark">
+        <tr>
+          <th></th>
+          <th>Date</th>
+          <th>ASIN</th>
+          <th>Event Type</th>
+          <th>WH Diff</th>
+          <th>Qty Change</th>
+          <th>Order / Shipment</th>
+          <th>User</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+        <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% endif %}"
+            data-asin="{{ log.filter_asin }}"
+            data-diff="{{ log.param_diff }}"
+            data-movement="{{ log.movement_group|default_if_none:'' }}"
+            data-type="{{ log.type_id }}">
+          <td>
+            {% if log.movement_group %}
+              <span class="movement-marker" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }} units{% endif %}"></span>
+            {% endif %}
+          </td>
+          <td class="text-nowrap">{{ log.created_at }}</td>
+          <td><span class="badge bg-info text-dark asin-clickable" data-asin="{{ log.filter_asin }}">{{ log.filter_asin }}{% if log.bundle_qty != 1 %} (x{{ log.bundle_qty }}){% endif %}</span></td>
+          <td><span class="badge type-badge bg-secondary">{{ log.type_label }}</span></td>
+          <td class="text-center {% if log.param_diff > 0 %}diff-positive{% elif log.param_diff < 0 %}diff-negative{% else %}diff-zero{% endif %}">
+            {% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}
+          </td>
+          <td class="qty-change">
+            {% if log.old_qty != None and log.new_qty != None %}
+              {{ log.old_qty }} &rarr; {{ log.new_qty }}
+            {% endif %}
+          </td>
+          <td>
+            <small>{{ log.order_number|truncatechars:35 }}</small>
+            {% if log.order_shipment_id %}
+              <br><span class="text-muted" style="font-size:0.75rem">shipment #{{ log.order_shipment_id }}</span>
+            {% endif %}
+          </td>
+          <td>{{ log.user_name }}</td>
+          <td><small>{{ log.description }}</small></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% elif not error %}
+  <div class="alert alert-info">No logs found for ASINs in this group.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const filterType = document.getElementById('filter-type');
+  const filterAsin = document.getElementById('filter-asin');
+  const btnSanitize = document.getElementById('btn-sanitize');
+  if (!filterType) return;
+
+  const rows = document.querySelectorAll('#logs-table tbody tr');
+  const HIDDEN_TYPES = new Set(['20000', '40000', '75000', '76000', '76100', '77000']);
+  let sanitize = false;
+  let highlightedAsin = null;
+
+  function applyFilters() {
+    const typeVal = filterType.value;
+    const asinVal = filterAsin.value;
+    rows.forEach(row => {
+      let show = true;
+      if (asinVal && row.dataset.asin !== asinVal) show = false;
+      if (typeVal === 'movement' && !row.dataset.movement) show = false;
+      if (typeVal === 'warehouse' && parseInt(row.dataset.diff) === 0) show = false;
+      if (typeVal.startsWith('type_') && row.dataset.type !== typeVal.slice(5)) show = false;
+      if (sanitize && HIDDEN_TYPES.has(row.dataset.type)) show = false;
+      row.style.display = show ? '' : 'none';
+      row.classList.toggle('asin-highlight', highlightedAsin && row.dataset.asin === highlightedAsin);
+    });
+  }
+
+  // Sanitize toggle
+  btnSanitize.addEventListener('click', function() {
+    sanitize = !sanitize;
+    this.classList.toggle('active', sanitize);
+    this.classList.toggle('btn-warning', sanitize);
+    this.classList.toggle('btn-outline-warning', !sanitize);
+    applyFilters();
+  });
+
+  // ASIN click highlight
+  document.getElementById('logs-table').addEventListener('click', function(e) {
+    const badge = e.target.closest('.asin-clickable');
+    if (!badge) return;
+    const asin = badge.dataset.asin;
+    highlightedAsin = (highlightedAsin === asin) ? null : asin;
+    applyFilters();
+  });
+
+  filterType.addEventListener('change', applyFilters);
+  filterAsin.addEventListener('change', applyFilters);
+})();
+</script>
+{% endblock %}
