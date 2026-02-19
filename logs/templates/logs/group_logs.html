@@ -34,6 +34,7 @@
   .diff-neg { color: #dc2626; font-weight: 600; }
   .diff-zero { color: #999; }
 
+  .arrived-row > td { background: #f0fdf4 !important; }
   .movement-row > td { background: #fefce8 !important; }
   .movement-mismatch > td { background: #fef2f2 !important; }
   .movement-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
@@ -100,7 +101,7 @@
     </thead>
     <tbody>
       {% for log in logs %}
-      <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% endif %}"
+      <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% elif log.type_id == 13300 %}arrived-row{% endif %}"
           data-asin="{{ log.filter_asin }}"
           data-diff="{{ log.param_diff }}"
           data-movement="{{ log.movement_group|default_if_none:'' }}"
