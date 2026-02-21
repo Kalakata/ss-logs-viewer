@@ -24,6 +24,19 @@
   .toolbar .meta { color: #888; font-size: 11px; }
   .toolbar .sep { width: 1px; height: 16px; background: #ddd; }
 
+  /* Chart panel */
+  .chart-panel { background: #fff; border-bottom: 1px solid #ddd; overflow: hidden; transition: max-height 0.2s ease; }
+  .chart-panel.collapsed { max-height: 0 !important; border-bottom: none; }
+  .chart-panel canvas { width: 100% !important; }
+
+  /* Movement flow panel */
+  .flow-panel { background: #fefce8; border-bottom: 1px solid #ddd; padding: 8px 12px; font-size: 12px; overflow: hidden; transition: max-height 0.2s ease; }
+  .flow-panel.collapsed { max-height: 0 !important; padding: 0 12px; border-bottom: none; }
+  .flow-row { display: inline-flex; align-items: center; gap: 4px; margin-right: 16px; margin-bottom: 2px; white-space: nowrap; }
+  .flow-asin { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 11px; font-weight: 600; }
+  .flow-arrow { color: #b45309; font-size: 10px; }
+  .flow-stat { color: #666; font-size: 11px; }
+
   .logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .logs-table thead { position: sticky; top: calc(var(--header-h) + var(--toolbar-h)); z-index: 40; }
   .logs-table th { background: #f0f1f3; padding: 3px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
@@ -31,6 +44,7 @@
   .logs-table tbody tr { border-left: 3px solid transparent; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
   .logs-table tbody tr.collapsed-row > td { padding: 0; height: 0; font-size: 0; line-height: 0; border: none; }
+  .logs-table tbody tr.chart-target > td { background: #dbeafe !important; }
 
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
@@ -88,9 +102,35 @@
         <option value="{{ asin }}">{{ asin }}</option>
       {% endfor %}
     </select>
-    <button id="btn-sanitize" class="btn-tool">Sanitize</button>
+    <button id="btn-sanitize" class="btn-tool active">Sanitize</button>
     <button id="btn-hide-zero-net" class="btn-tool">Hide net-zero</button>
+    <span class="sep"></span>
+    <button id="btn-chart" class="btn-tool active">Chart</button>
+    {% if movement_flows %}
+    <button id="btn-flows" class="btn-tool active">Flows</button>
+    {% endif %}
   </div>
+
+  <!-- Stock balance chart -->
+  <div class="chart-panel" id="chart-panel" style="max-height:260px;">
+    <canvas id="stock-chart" height="240"></canvas>
+  </div>
+
+  <!-- Movement flow summary -->
+  {% if movement_flows %}
+  <div class="flow-panel" id="flow-panel" style="max-height:100px;">
+    {% for flow in movement_flows %}
+    <span class="flow-row">
+      <span class="flow-asin" data-flow-asin="{{ flow.src }}">...{{ flow.src|slice:"-4" }}</span>
+      <span class="flow-arrow">&rarr;</span>
+      <span class="flow-asin" data-flow-asin="{{ flow.dst }}">...{{ flow.dst|slice:"-4" }}</span>
+      <span class="flow-stat">{{ flow.units }}u ({{ flow.count }}x)</span>
+    </span>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  {{ log_data|json_script:"log-data" }}
 
   <table class="logs-table" id="logs-table">
     <thead>
@@ -115,7 +155,8 @@
           data-movement="{{ log.movement_group|default_if_none:'' }}"
           data-type="{{ log.type_id }}"
           data-shipment-id="{{ log.order_shipment_id|default_if_none:'' }}"
-          data-order-number="{{ log.order_number|default_if_none:'' }}">
+          data-order-number="{{ log.order_number|default_if_none:'' }}"
+          data-ts="{{ log.created_at }}">
         <td>{% if log.movement_group %}<span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span>{% endif %}</td>
         <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
         <td><span class="asin-tag" data-asin="{{ log.filter_asin }}">{{ log.filter_asin }}{% if log.bundle_qty != 1 %}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span>{% endif %}</span></td>
@@ -136,6 +177,8 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <script>
 (function() {
   const filterType = document.getElementById('filter-type');
@@ -145,7 +188,7 @@
 
   const rows = document.querySelectorAll('#logs-table tbody tr');
   const HIDDEN_TYPES = new Set(['20000', '20400', '30200', '40000', '75000', '75100', '76000', '76100', '77000']);
-  let sanitize = false;
+  let sanitize = true;
   let highlightedAsin = null;
 
   const originalOrder = Array.from(rows);
@@ -158,6 +201,15 @@
   const asinColorMap = {};
   document.querySelectorAll('#filter-asin option').forEach((opt, i) => {
     if (opt.value) asinColorMap[opt.value] = i - 1;
+  });
+
+  // Color flow ASIN tags
+  document.querySelectorAll('.flow-asin').forEach(el => {
+    const asin = el.dataset.flowAsin;
+    const idx = asinColorMap[asin] !== undefined ? asinColorMap[asin] : 0;
+    const c = ASIN_COLORS[idx % ASIN_COLORS.length];
+    el.style.background = c.bg;
+    el.style.color = c.fg;
   });
 
   // Build per-ASIN stock balance columns
@@ -243,6 +295,7 @@
       row.classList.toggle('collapsed-row', !show);
       row.classList.toggle('asin-highlight', show && highlightedAsin && row.dataset.asin === highlightedAsin);
     });
+    updateChart();
   }
 
   btnSanitize.addEventListener('click', function() {
@@ -267,6 +320,140 @@
 
   filterType.addEventListener('change', applyFilters);
   filterAsin.addEventListener('change', applyFilters);
+
+  // --- Chart panel toggle ---
+  const btnChart = document.getElementById('btn-chart');
+  const chartPanel = document.getElementById('chart-panel');
+  if (btnChart && chartPanel) {
+    btnChart.addEventListener('click', function() {
+      chartPanel.classList.toggle('collapsed');
+      this.classList.toggle('active', !chartPanel.classList.contains('collapsed'));
+    });
+  }
+
+  // --- Flow panel toggle ---
+  const btnFlows = document.getElementById('btn-flows');
+  const flowPanel = document.getElementById('flow-panel');
+  if (btnFlows && flowPanel) {
+    btnFlows.addEventListener('click', function() {
+      flowPanel.classList.toggle('collapsed');
+      this.classList.toggle('active', !flowPanel.classList.contains('collapsed'));
+    });
+  }
+
+  // --- Stock balance chart ---
+  const logDataEl = document.getElementById('log-data');
+  let stockChart = null;
+
+  if (logDataEl && typeof Chart !== 'undefined') {
+    const logData = JSON.parse(logDataEl.textContent);
+
+    // Build per-ASIN time series: extract (timestamp, new_qty) where diff != 0 and new_qty exists
+    const seriesByAsin = {};
+    asinList.forEach(a => { seriesByAsin[a] = []; });
+
+    // logData is sorted DESC (newest first) — we need ASC for chart
+    const chronological = logData.slice().reverse();
+
+    chronological.forEach((entry, i) => {
+      if (entry.d !== 0 && entry.nq !== null && entry.nq !== undefined && seriesByAsin[entry.a]) {
+        seriesByAsin[entry.a].push({
+          x: new Date(entry.t.replace(' ', 'T')),
+          y: entry.nq,
+          rowIndex: logData.length - 1 - i, // index in DESC order (matches DOM row order)
+        });
+      }
+    });
+
+    const LINE_COLORS = ['#1e40af', '#166534', '#92400e', '#9d174d', '#3730a3', '#7c3aed'];
+    const BG_COLORS = ['rgba(30,64,175,0.08)', 'rgba(22,101,52,0.08)', 'rgba(146,64,14,0.08)', 'rgba(157,23,77,0.08)', 'rgba(55,48,163,0.08)', 'rgba(124,58,237,0.08)'];
+
+    const datasets = asinList.map((asin, i) => ({
+      label: '...' + asin.slice(-4),
+      data: seriesByAsin[asin],
+      borderColor: LINE_COLORS[i % LINE_COLORS.length],
+      backgroundColor: BG_COLORS[i % BG_COLORS.length],
+      borderWidth: 1.5,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      pointHitRadius: 8,
+      stepped: 'before',
+      fill: true,
+      tension: 0,
+      _asin: asin,
+    }));
+
+    const ctx = document.getElementById('stock-chart').getContext('2d');
+    stockChart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets: datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'nearest', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: { boxWidth: 12, font: { size: 11 }, padding: 8 },
+          },
+          tooltip: {
+            titleFont: { size: 11 },
+            bodyFont: { size: 11 },
+            callbacks: {
+              title: function(items) {
+                if (!items.length) return '';
+                const d = items[0].raw.x;
+                return d.toISOString().slice(0, 16).replace('T', ' ');
+              },
+              label: function(item) {
+                return item.dataset.label + ': ' + item.raw.y + ' units';
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            type: 'time',
+            time: { tooltipFormat: 'yyyy-MM-dd HH:mm' },
+            ticks: { font: { size: 10 }, maxTicksLimit: 12 },
+            grid: { display: false },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { font: { size: 10 } },
+            grid: { color: '#f0f0f0' },
+          }
+        },
+        onClick: function(evt, elements) {
+          if (!elements.length) return;
+          const el = elements[0];
+          const point = stockChart.data.datasets[el.datasetIndex].data[el.index];
+          if (point && point.rowIndex !== undefined) {
+            const targetRow = originalOrder[point.rowIndex];
+            if (targetRow) {
+              // Clear previous highlight
+              document.querySelectorAll('.chart-target').forEach(r => r.classList.remove('chart-target'));
+              targetRow.classList.add('chart-target');
+              targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              setTimeout(() => targetRow.classList.remove('chart-target'), 3000);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function updateChart() {
+    if (!stockChart) return;
+    const asinVal = filterAsin.value;
+    stockChart.data.datasets.forEach(ds => {
+      ds.hidden = asinVal ? (ds._asin !== asinVal) : false;
+    });
+    stockChart.update();
+  }
+
+  // Apply sanitize filter on load
+  applyFilters();
 })();
 </script>
 {% endblock %}
