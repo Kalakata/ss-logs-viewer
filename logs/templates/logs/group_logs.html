@@ -252,6 +252,7 @@
 
     const rowList = group.rows;
     const asinDiffs = {};
+    const asinFinalQty = {};
     let minDate = null, maxDate = null;
     const asins = new Set();
 
@@ -260,6 +261,12 @@
       asins.add(asin);
       const diff = parseInt(row.dataset.diff) || 0;
       asinDiffs[asin] = (asinDiffs[asin] || 0) + diff;
+      // First occurrence per ASIN = most recent (rows sorted DESC)
+      if (asinFinalQty[asin] === undefined) {
+        const qtyText = row.querySelector('td:nth-child(6)').textContent.trim();
+        const parts = qtyText.split('\u2192');
+        if (parts.length === 2) asinFinalQty[asin] = parts[1].trim();
+      }
       const dateText = row.querySelector('td:nth-child(2)').textContent.trim();
       if (!minDate || dateText < minDate) minDate = dateText;
       if (!maxDate || dateText > maxDate) maxDate = dateText;
@@ -297,6 +304,12 @@
       const diff = el('span', net > 0 ? 'diff-pos' : net < 0 ? 'diff-neg' : 'diff-zero', sign + net);
       diff.style.fontSize = '10px';
       tag.appendChild(diff);
+      if (asinFinalQty[asin] !== undefined) {
+        const qty = el('span', '', ' (' + asinFinalQty[asin] + ')');
+        qty.style.fontSize = '10px';
+        qty.style.color = '#666';
+        tag.appendChild(qty);
+      }
       td.appendChild(tag);
     });
 
