@@ -378,9 +378,74 @@
       pointHoverRadius: 4,
       pointHitRadius: 8,
       fill: true,
-      tension: 0.3,
+      cubicInterpolationMode: 'monotone',
+      tension: 0.4,
       _asin: asin,
     }));
+
+    // Build movement annotations from log data
+    const movementGroups = {};
+    logData.forEach(entry => {
+      if (!entry.mg) return;
+      if (!movementGroups[entry.mg]) movementGroups[entry.mg] = { ts: entry.t, balanced: entry.mb, flows: [] };
+      movementGroups[entry.mg].flows.push({ asin: entry.a, diff: entry.d });
+    });
+
+    const movementLines = Object.values(movementGroups).map(mg => {
+      const sources = mg.flows.filter(f => f.diff < 0);
+      const targets = mg.flows.filter(f => f.diff > 0);
+      // Build label: "SRC → TGT: Xu" for each pair
+      const parts = [];
+      sources.forEach(s => {
+        targets.forEach(t => {
+          parts.push(s.asin.slice(-4) + '→' + t.asin.slice(-4) + ':' + Math.abs(s.diff));
+        });
+      });
+      return {
+        x: new Date(mg.ts.replace(' ', 'T')),
+        balanced: mg.balanced,
+        label: parts.join(' '),
+      };
+    });
+
+    // Custom plugin to draw movement vertical lines
+    const movementPlugin = {
+      id: 'movementLines',
+      afterDatasetsDraw(chart) {
+        if (!chart._movementLines || !chart._movementLines.length) return;
+        const { ctx, chartArea: { top, bottom }, scales: { x: xScale } } = chart;
+        ctx.save();
+        chart._movementLines.forEach(ml => {
+          const px = xScale.getPixelForValue(ml.x.getTime());
+          if (px < chart.chartArea.left || px > chart.chartArea.right) return;
+
+          // Vertical line
+          ctx.beginPath();
+          ctx.setLineDash(ml.balanced ? [4, 3] : [6, 2]);
+          ctx.lineWidth = ml.balanced ? 1 : 1.5;
+          ctx.strokeStyle = ml.balanced ? 'rgba(217, 119, 6, 0.5)' : 'rgba(220, 38, 38, 0.7)';
+          ctx.moveTo(px, top);
+          ctx.lineTo(px, bottom);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Label at top
+          ctx.font = '9px sans-serif';
+          ctx.fillStyle = ml.balanced ? '#92400e' : '#dc2626';
+          ctx.textAlign = 'center';
+          const labelY = top + 10;
+          ctx.fillText(ml.label, px, labelY);
+
+          // Mismatch indicator
+          if (!ml.balanced) {
+            ctx.fillStyle = '#dc2626';
+            ctx.font = 'bold 9px sans-serif';
+            ctx.fillText('MISMATCH', px, labelY + 10);
+          }
+        });
+        ctx.restore();
+      }
+    };
 
     // Compute y-axis max with headroom
     let yMax = 0;
@@ -391,6 +456,7 @@
     stockChart = new Chart(ctx, {
       type: 'line',
       data: { datasets: datasets },
+      plugins: [movementPlugin],
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -446,6 +512,7 @@
         }
       }
     });
+    stockChart._movementLines = movementLines;
   }
 
   function updateChart() {

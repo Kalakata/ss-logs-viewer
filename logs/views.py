@@ -107,6 +107,7 @@ def group_logs(request, group_id):
             'nq': l['new_qty'],
             'ti': l['type_id'],
             'mg': l.get('movement_group'),
+            'mb': l.get('movement_balanced'),
         }
         for l in logs
     ]
