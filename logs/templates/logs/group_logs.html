@@ -388,46 +388,68 @@
         const { ctx, chartArea: { top, bottom, left, right }, scales: { x: xScale } } = chart;
         ctx.save();
 
-        // Sort by pixel position and stagger labels that overlap
-        const minLabelGap = 100; // px
-        const drawn = []; // track pixel positions of drawn labels
+        // Compute pixel positions and sort left-to-right
+        const visible = chart._movementLines
+          .map(ml => ({ ...ml, px: xScale.getPixelForValue(ml.x.getTime()) }))
+          .filter(ml => ml.px >= left && ml.px <= right)
+          .sort((a, b) => a.px - b.px);
 
-        chart._movementLines.forEach(ml => {
-          const px = xScale.getPixelForValue(ml.x.getTime());
-          if (px < left || px > right) return;
+        // Track placed label bounding boxes to avoid overlap
+        const placed = []; // {left, right, top, bottom} in px
 
+        visible.forEach(ml => {
           // Vertical line
           ctx.beginPath();
           ctx.setLineDash(ml.balanced ? [4, 3] : [6, 2]);
           ctx.lineWidth = ml.balanced ? 1 : 1.5;
           ctx.strokeStyle = ml.balanced ? 'rgba(217, 119, 6, 0.5)' : 'rgba(220, 38, 38, 0.7)';
-          ctx.moveTo(px, top);
-          ctx.lineTo(px, bottom);
+          ctx.moveTo(ml.px, top);
+          ctx.lineTo(ml.px, bottom);
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // Stagger label Y if close to a previous label
+          // Measure label width
+          ctx.font = '9px sans-serif';
+          const textW = ctx.measureText(ml.label).width;
+          const mismatchW = ml.balanced ? 0 : ctx.measureText('MISMATCH').width;
+          const boxW = Math.max(textW, mismatchW) + 8;
+          const boxH = ml.balanced ? 12 : 22;
+
+          // Find Y that doesn't overlap any placed label
           let labelY = top + 10;
-          const lineH = ml.balanced ? 12 : 22;
-          for (const prev of drawn) {
-            if (Math.abs(px - prev.px) < minLabelGap) {
-              labelY = Math.max(labelY, prev.bottom + 4);
-            }
+          let attempts = 0;
+          while (attempts < 20) {
+            const boxL = ml.px - boxW / 2;
+            const boxR = ml.px + boxW / 2;
+            const boxT = labelY - boxH;
+            const boxB = labelY + 2;
+            const overlaps = placed.some(p =>
+              boxL < p.right && boxR > p.left && boxT < p.bottom && boxB > p.top
+            );
+            if (!overlaps) break;
+            labelY += boxH + 4;
+            attempts++;
           }
 
           ctx.font = '9px sans-serif';
           ctx.fillStyle = ml.balanced ? '#92400e' : '#dc2626';
           ctx.textAlign = 'center';
-          ctx.fillText(ml.label, px, labelY);
+          ctx.fillText(ml.label, ml.px, labelY);
 
-          let curBottom = labelY;
+          let totalH = 12;
           if (!ml.balanced) {
             ctx.fillStyle = '#dc2626';
             ctx.font = 'bold 9px sans-serif';
-            ctx.fillText('MISMATCH', px, labelY + 10);
-            curBottom = labelY + 10;
+            ctx.fillText('MISMATCH', ml.px, labelY + 10);
+            totalH = 22;
           }
-          drawn.push({ px, bottom: curBottom });
+
+          placed.push({
+            left: ml.px - boxW / 2,
+            right: ml.px + boxW / 2,
+            top: labelY - totalH,
+            bottom: labelY + 2,
+          });
         });
         ctx.restore();
       }
