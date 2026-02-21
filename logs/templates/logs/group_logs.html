@@ -64,6 +64,7 @@
   .stock-col { text-align: center; font-size: 10px; color: #ccc; min-width: 28px; padding: 2px 3px !important; }
   .stock-col.has-val { color: #555; font-weight: 500; }
   .stock-col.stock-zero { color: #dc2626 !important; font-weight: 600 !important; background: #fef2f2 !important; }
+  .hide-stock-cols .stock-col, .hide-stock-cols th.stock-col-hdr { display: none; }
 </style>
 {% endblock %}
 
@@ -97,6 +98,7 @@
     <button id="btn-sanitize" class="btn-tool active">Sanitize</button>
     <button id="btn-hide-zero-net" class="btn-tool">Hide net-zero</button>
     <span class="sep"></span>
+    <button id="btn-stock-cols" class="btn-tool active">Stock cols</button>
     <button id="btn-chart" class="btn-tool active">Chart</button>
     <button id="btn-reset-zoom" class="btn-tool">Reset zoom</button>
   </div>
@@ -196,6 +198,7 @@
     const headerRow = document.querySelector('#logs-table thead tr');
     asinList.forEach(asin => {
       const th = document.createElement('th');
+      th.className = 'stock-col-hdr';
       th.textContent = asinLabel(asin);
       th.style.textAlign = 'center';
       th.style.fontSize = '10px';
@@ -295,6 +298,16 @@
 
   filterType.addEventListener('change', applyFilters);
   filterAsin.addEventListener('change', applyFilters);
+
+  // --- Stock columns toggle ---
+  const btnStockCols = document.getElementById('btn-stock-cols');
+  const logsTable = document.getElementById('logs-table');
+  if (btnStockCols && logsTable) {
+    btnStockCols.addEventListener('click', function() {
+      logsTable.classList.toggle('hide-stock-cols');
+      this.classList.toggle('active', !logsTable.classList.contains('hide-stock-cols'));
+    });
+  }
 
   // --- Chart panel toggle ---
   const btnChart = document.getElementById('btn-chart');
