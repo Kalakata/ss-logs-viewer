@@ -62,7 +62,6 @@
   .sh-id { color: #888; font-weight: 400; font-size: 11px; margin-right: 12px; }
   .sh-dates { color: #666; font-weight: 400; font-size: 11px; margin-right: 12px; }
   .sh-asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 10px; font-weight: 400; margin-right: 4px; }
-  .sh-net { font-weight: 400; font-size: 11px; margin-left: 8px; }
   .sh-count { color: #999; font-weight: 400; font-size: 11px; float: right; }
 </style>
 {% endblock %}
@@ -255,13 +254,18 @@
       td.appendChild(noShip);
     }
 
-    // ASIN tags
+    // ASIN tags with net diff inline
     asins.forEach(asin => {
       const idx = asinColorMap[asin] !== undefined ? asinColorMap[asin] : 0;
       const c = ASIN_COLORS[idx % ASIN_COLORS.length];
-      const tag = el('span', 'sh-asin-tag', asin);
+      const net = asinDiffs[asin] || 0;
+      const sign = net > 0 ? '+' : '';
+      const tag = el('span', 'sh-asin-tag', asin + ' ');
       tag.style.background = c.bg;
       tag.style.color = c.fg;
+      const diff = el('span', net > 0 ? 'diff-pos' : net < 0 ? 'diff-neg' : 'diff-zero', sign + net);
+      diff.style.fontSize = '10px';
+      tag.appendChild(diff);
       td.appendChild(tag);
     });
 
@@ -271,18 +275,6 @@
       const dates = el('span', 'sh-dates', d1 === d2 ? d1 : d1 + ' \u2014 ' + d2);
       td.appendChild(dates);
     }
-
-    // Net qty per ASIN
-    const netSpan = el('span', 'sh-net');
-    Object.keys(asinDiffs).forEach(asin => {
-      const net = asinDiffs[asin];
-      const cls = net > 0 ? 'diff-pos' : net < 0 ? 'diff-neg' : 'diff-zero';
-      const sign = net > 0 ? '+' : '';
-      const s = el('span', cls, '...' + asin.slice(-4) + ': ' + sign + net);
-      s.style.marginRight = '6px';
-      netSpan.appendChild(s);
-    });
-    td.appendChild(netSpan);
 
     // Entry count
     td.appendChild(el('span', 'sh-count', rowList.length + ' entries'));
@@ -323,8 +315,11 @@
     clearChildren(tbody);
     collapsedGroups.clear();
     sortedKeys.forEach(sid => {
+      collapsedGroups.add(sid);
       const group = groups.get(sid);
-      tbody.appendChild(buildShipmentHeader(sid, group));
+      const header = buildShipmentHeader(sid, group);
+      header.classList.add('collapsed');
+      tbody.appendChild(header);
       group.rows.forEach(row => {
         row.dataset.shipmentGroup = sid;
         tbody.appendChild(row);
