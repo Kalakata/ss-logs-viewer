@@ -63,6 +63,11 @@
   .sh-dates { color: #666; font-weight: 400; font-size: 11px; margin-right: 12px; }
   .sh-asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 10px; font-weight: 400; margin-right: 4px; }
   .sh-count { color: #999; font-weight: 400; font-size: 11px; float: right; }
+
+  /* Per-ASIN stock balance columns */
+  .stock-col { text-align: center; font-size: 10px; color: #ccc; min-width: 28px; padding: 2px 3px !important; }
+  .stock-col.has-val { color: #555; font-weight: 500; }
+  .stock-col.stock-zero { color: #dc2626 !important; font-weight: 600 !important; background: #fef2f2 !important; }
 </style>
 {% endblock %}
 
@@ -187,6 +192,48 @@
     }
   });
 
+  // Build per-ASIN stock balance columns
+  const asinList = [];
+  document.querySelectorAll('#filter-asin option').forEach(opt => {
+    if (opt.value) asinList.push(opt.value);
+  });
+  const COL_COUNT = 10 + asinList.length;
+
+  if (asinList.length > 0) {
+    const headerRow = document.querySelector('#logs-table thead tr');
+    asinList.forEach(asin => {
+      const th = document.createElement('th');
+      th.textContent = '...' + asin.slice(-4);
+      th.style.textAlign = 'center';
+      th.style.fontSize = '10px';
+      th.style.minWidth = '32px';
+      const idx = asinColorMap[asin] !== undefined ? asinColorMap[asin] : 0;
+      const c = ASIN_COLORS[idx % ASIN_COLORS.length];
+      th.style.color = c.fg;
+      th.style.background = c.bg;
+      headerRow.appendChild(th);
+    });
+
+    originalOrder.forEach(row => {
+      const rowAsin = row.dataset.asin;
+      const diff = parseInt(row.dataset.diff) || 0;
+      const qtyText = row.querySelector('td:nth-child(6)').textContent.trim();
+      const parts = qtyText.split('\u2192');
+      const newQty = parts.length === 2 ? parseInt(parts[1].trim()) : null;
+
+      asinList.forEach(asin => {
+        const td = document.createElement('td');
+        td.className = 'stock-col';
+        if (asin === rowAsin && diff !== 0 && newQty !== null && !isNaN(newQty)) {
+          td.textContent = newQty;
+          td.classList.add('has-val');
+          if (newQty === 0) td.classList.add('stock-zero');
+        }
+        row.appendChild(td);
+      });
+    });
+  }
+
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -259,7 +306,7 @@
     tr.className = 'shipment-header' + (!sid ? ' no-shipment' : '');
     tr.dataset.shipmentId = sid;
     const td = document.createElement('td');
-    td.colSpan = 10;
+    td.colSpan = COL_COUNT;
 
     const rowList = group.rows;
     const asinDiffs = {};
