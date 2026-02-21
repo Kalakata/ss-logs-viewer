@@ -71,7 +71,7 @@ class Command(BaseCommand):
         # Build CSV
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow(['Date', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Mismatch'])
+        writer.writerow(['Date', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Description', 'Mismatch'])
         for l in logs:
             old_q = l.get('old_qty')
             new_q = l.get('new_qty')
@@ -85,6 +85,7 @@ class Command(BaseCommand):
                 l.get('product_name', ''),
                 l.get('vendor_name', ''),
                 l.get('user_name', ''),
+                l.get('description', ''),
                 l.get('mismatch', ''),
             ])
 
