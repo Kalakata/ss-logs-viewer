@@ -96,3 +96,14 @@ SS_CLIENT_ID = os.environ.get('SS_CLIENT_ID', '')
 SS_CLIENT_SECRET = os.environ.get('SS_CLIENT_SECRET', '')
 SS_ACCOUNT_ID = os.environ.get('SS_ACCOUNT_ID', '')
 SS_BEARER_TOKEN = os.environ.get('SS_BEARER_TOKEN', '')
+
+# Email (Gmail SMTP)
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+REPORT_RECIPIENTS = [
+    r.strip() for r in os.environ.get('REPORT_RECIPIENTS', '').split(',') if r.strip()
+]
