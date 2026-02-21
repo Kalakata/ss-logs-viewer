@@ -377,11 +377,15 @@
       pointRadius: 0,
       pointHoverRadius: 4,
       pointHitRadius: 8,
-      stepped: 'before',
       fill: true,
-      tension: 0,
+      tension: 0.3,
       _asin: asin,
     }));
+
+    // Compute y-axis max with headroom
+    let yMax = 0;
+    datasets.forEach(ds => ds.data.forEach(p => { if (p.y > yMax) yMax = p.y; }));
+    const ySuggestedMax = Math.ceil(yMax * 1.1);
 
     const ctx = document.getElementById('stock-chart').getContext('2d');
     stockChart = new Chart(ctx, {
@@ -420,6 +424,7 @@
           },
           y: {
             beginAtZero: true,
+            suggestedMax: ySuggestedMax,
             ticks: { font: { size: 10 } },
             grid: { color: '#f0f0f0' },
           }
