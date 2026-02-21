@@ -2,6 +2,7 @@ import json
 import os
 import time
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
 from django.conf import settings
@@ -216,11 +217,13 @@ def fetch_logs_for_asins(asin_list):
     bearer_token, cfg = _load_credentials()
     all_logs = []
 
-    for i, asin in enumerate(asin_list):
-        logs = _fetch_asin_logs(asin, bearer_token, cfg)
-        all_logs.extend(logs)
-        if i < len(asin_list) - 1 and DELAY_BETWEEN_ASINS > 0:
-            time.sleep(DELAY_BETWEEN_ASINS)
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {
+            pool.submit(_fetch_asin_logs, asin, bearer_token, cfg): asin
+            for asin in asin_list
+        }
+        for future in as_completed(futures):
+            all_logs.extend(future.result())
 
     _detect_movements(all_logs)
     all_logs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
