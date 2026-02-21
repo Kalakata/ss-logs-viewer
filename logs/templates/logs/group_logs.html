@@ -378,8 +378,8 @@
       pointHoverRadius: 4,
       pointHitRadius: 8,
       fill: true,
-      cubicInterpolationMode: 'monotone',
-      tension: 0.4,
+      stepped: 'before',
+      tension: 0,
       _asin: asin,
     }));
 
@@ -413,11 +413,16 @@
       id: 'movementLines',
       afterDatasetsDraw(chart) {
         if (!chart._movementLines || !chart._movementLines.length) return;
-        const { ctx, chartArea: { top, bottom }, scales: { x: xScale } } = chart;
+        const { ctx, chartArea: { top, bottom, left, right }, scales: { x: xScale } } = chart;
         ctx.save();
+
+        // Sort by pixel position and stagger labels that overlap
+        const minLabelGap = 60; // px
+        const drawn = []; // track pixel positions of drawn labels
+
         chart._movementLines.forEach(ml => {
           const px = xScale.getPixelForValue(ml.x.getTime());
-          if (px < chart.chartArea.left || px > chart.chartArea.right) return;
+          if (px < left || px > right) return;
 
           // Vertical line
           ctx.beginPath();
@@ -429,19 +434,28 @@
           ctx.stroke();
           ctx.setLineDash([]);
 
-          // Label at top
+          // Stagger label Y if close to a previous label
+          let labelY = top + 10;
+          const lineH = ml.balanced ? 12 : 22;
+          for (const prev of drawn) {
+            if (Math.abs(px - prev.px) < minLabelGap) {
+              labelY = Math.max(labelY, prev.bottom + 4);
+            }
+          }
+
           ctx.font = '9px sans-serif';
           ctx.fillStyle = ml.balanced ? '#92400e' : '#dc2626';
           ctx.textAlign = 'center';
-          const labelY = top + 10;
           ctx.fillText(ml.label, px, labelY);
 
-          // Mismatch indicator
+          let curBottom = labelY;
           if (!ml.balanced) {
             ctx.fillStyle = '#dc2626';
             ctx.font = 'bold 9px sans-serif';
             ctx.fillText('MISMATCH', px, labelY + 10);
+            curBottom = labelY + 10;
           }
+          drawn.push({ px, bottom: curBottom });
         });
         ctx.restore();
       }
