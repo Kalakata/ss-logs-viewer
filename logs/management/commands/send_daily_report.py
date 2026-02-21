@@ -68,9 +68,11 @@ class Command(BaseCommand):
 
         mismatch_count = sum(1 for l in logs if l.get('mismatch') == 'MISMATCH')
 
-        # Build CSV
-        buf = io.StringIO()
-        writer = csv.writer(buf)
+        # Build CSV (utf-8-sig adds BOM so Excel recognises Cyrillic)
+        buf = io.BytesIO()
+        buf.write(b'\xef\xbb\xbf')
+        text_wrapper = io.TextIOWrapper(buf, encoding='utf-8', newline='')
+        writer = csv.writer(text_wrapper)
         writer.writerow(['Date', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Description', 'Mismatch'])
         for l in logs:
             old_q = l.get('old_qty')
@@ -102,6 +104,7 @@ class Command(BaseCommand):
             from_email=settings.EMAIL_HOST_USER,
             to=recipients,
         )
+        text_wrapper.flush()
         email.attach(filename, buf.getvalue(), 'text/csv')
         email.send()
 
