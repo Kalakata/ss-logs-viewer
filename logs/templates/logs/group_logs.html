@@ -107,6 +107,7 @@
   </div>
 
   {{ log_data|json_script:"log-data" }}
+  {{ bundle_map|json_script:"bundle-map" }}
 
   <table class="logs-table" id="logs-table">
     <thead>
@@ -135,7 +136,7 @@
           data-ts="{{ log.created_at }}">
         <td>{% if log.movement_group %}<span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span>{% endif %}</td>
         <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
-        <td><span class="asin-tag" data-asin="{{ log.filter_asin }}">{{ log.filter_asin }}{% if log.bundle_qty != 1 %}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span>{% endif %}</span></td>
+        <td><span class="asin-tag" data-asin="{{ log.filter_asin }}">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
         <td><span class="type-tag">{{ log.type_label }}</span></td>
         <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}</td>
         <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
@@ -181,6 +182,11 @@
     if (opt.value) asinColorMap[opt.value] = i - 1;
   });
 
+  // Bundle quantities
+  const bundleMapEl = document.getElementById('bundle-map');
+  const bundleMap = bundleMapEl ? JSON.parse(bundleMapEl.textContent) : {};
+  function asinLabel(asin) { return asin + ' x' + (bundleMap[asin] || 1); }
+
   // Build per-ASIN stock balance columns
   const asinList = [];
   document.querySelectorAll('#filter-asin option').forEach(opt => {
@@ -190,7 +196,7 @@
     const headerRow = document.querySelector('#logs-table thead tr');
     asinList.forEach(asin => {
       const th = document.createElement('th');
-      th.textContent = asin;
+      th.textContent = asinLabel(asin);
       th.style.textAlign = 'center';
       th.style.fontSize = '10px';
       th.style.minWidth = '32px';
@@ -335,7 +341,7 @@
     const BG_COLORS = ['rgba(30,64,175,0.08)', 'rgba(22,101,52,0.08)', 'rgba(146,64,14,0.08)', 'rgba(157,23,77,0.08)', 'rgba(55,48,163,0.08)', 'rgba(124,58,237,0.08)'];
 
     const datasets = asinList.map((asin, i) => ({
-      label: asin,
+      label: asinLabel(asin),
       data: seriesByAsin[asin],
       borderColor: LINE_COLORS[i % LINE_COLORS.length],
       backgroundColor: BG_COLORS[i % BG_COLORS.length],

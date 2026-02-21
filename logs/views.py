@@ -121,4 +121,5 @@ def group_logs(request, group_id):
         'movement_count': movement_count,
         'event_types': event_types,
         'log_data': log_data,
+        'bundle_map': bundle_map,
     })
