@@ -231,17 +231,20 @@ def _parse_period_page(page_logs):
         #   {"area_type":1, "area_id":5, "area_name":"UK", "values":["B06Y487SQC"]}
         area_asins = record.get("area_asins") or []
         filter_asin = ""
+        area_name = ""
         if isinstance(area_asins, list) and area_asins:
             first = area_asins[0]
             if isinstance(first, dict):
                 vals = first.get("values") or []
                 filter_asin = vals[0] if vals else ""
+                area_name = first.get("area_name", "")
             else:
                 filter_asin = str(first)
         if not filter_asin:
             filter_asin = _format_field(record, "area_asins")
         logs.append({
             "filter_asin": filter_asin,
+            "area_name": area_name,
             "id": record.get("id"),
             "created_at": record.get("created_at", ""),
             "order_number": record.get("order_number", ""),
