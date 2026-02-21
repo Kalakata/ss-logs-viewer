@@ -3,9 +3,12 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
-from django.http import JsonResponse
+from django.core.management import call_command
+from django.http import JsonResponse, HttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.db.models import Count, Q
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET
 
 from .models import ProductGroup, Product, Barcode
 from .sostocked import fetch_logs_for_asins, fetch_all_logs_by_period, TYPE_LABELS
@@ -203,3 +206,17 @@ def movements(request):
         'period_choices': PERIOD_CHOICES,
         'movement_count': movement_count,
     })
+
+
+@csrf_exempt
+@require_GET
+def trigger_report(request):
+    from django.conf import settings as s
+    token = request.GET.get('token', '')
+    if not s.CRON_SECRET or token != s.CRON_SECRET:
+        return HttpResponse('Forbidden', status=403)
+    try:
+        call_command('send_daily_report')
+        return HttpResponse('OK')
+    except Exception as e:
+        return HttpResponse(f'Error: {e}', status=500)

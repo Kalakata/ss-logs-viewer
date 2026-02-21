@@ -107,3 +107,4 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 REPORT_RECIPIENTS = [
     r.strip() for r in os.environ.get('REPORT_RECIPIENTS', '').split(',') if r.strip()
 ]
+CRON_SECRET = os.environ.get('CRON_SECRET', '')
