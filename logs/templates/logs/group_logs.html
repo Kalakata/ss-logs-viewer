@@ -30,6 +30,8 @@
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
   .logs-table tbody tr { border-left: 3px solid transparent; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
+  .logs-table tbody tr.collapsed-row > td { padding: 0; height: 2px; font-size: 0; line-height: 0; border-bottom: none; overflow: hidden; }
+  .logs-table tbody tr.collapsed-row:hover > td { background: #e5e7eb; }
 
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
@@ -239,8 +241,8 @@
       if (sanitize && HIDDEN_TYPES.has(row.dataset.type)) show = false;
       if (hideZeroNet && zeroNetShipments.has(row.dataset.shipmentId)) show = false;
 
-      row.style.display = show ? '' : 'none';
-      row.classList.toggle('asin-highlight', highlightedAsin && row.dataset.asin === highlightedAsin);
+      row.classList.toggle('collapsed-row', !show);
+      row.classList.toggle('asin-highlight', show && highlightedAsin && row.dataset.asin === highlightedAsin);
     });
   }
 
