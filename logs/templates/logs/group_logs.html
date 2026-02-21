@@ -121,9 +121,9 @@
   <div class="flow-panel" id="flow-panel" style="max-height:100px;">
     {% for flow in movement_flows %}
     <span class="flow-row">
-      <span class="flow-asin" data-flow-asin="{{ flow.src }}">...{{ flow.src|slice:"-4" }}</span>
+      <span class="flow-asin" data-flow-asin="{{ flow.src }}">{{ flow.src }}</span>
       <span class="flow-arrow">&rarr;</span>
-      <span class="flow-asin" data-flow-asin="{{ flow.dst }}">...{{ flow.dst|slice:"-4" }}</span>
+      <span class="flow-asin" data-flow-asin="{{ flow.dst }}">{{ flow.dst }}</span>
       <span class="flow-stat">{{ flow.units }}u ({{ flow.count }}x)</span>
     </span>
     {% endfor %}
@@ -221,7 +221,7 @@
     const headerRow = document.querySelector('#logs-table thead tr');
     asinList.forEach(asin => {
       const th = document.createElement('th');
-      th.textContent = '...' + asin.slice(-4);
+      th.textContent = asin;
       th.style.textAlign = 'center';
       th.style.fontSize = '10px';
       th.style.minWidth = '32px';
@@ -369,7 +369,7 @@
     const BG_COLORS = ['rgba(30,64,175,0.08)', 'rgba(22,101,52,0.08)', 'rgba(146,64,14,0.08)', 'rgba(157,23,77,0.08)', 'rgba(55,48,163,0.08)', 'rgba(124,58,237,0.08)'];
 
     const datasets = asinList.map((asin, i) => ({
-      label: '...' + asin.slice(-4),
+      label: asin,
       data: seriesByAsin[asin],
       borderColor: LINE_COLORS[i % LINE_COLORS.length],
       backgroundColor: BG_COLORS[i % BG_COLORS.length],
