@@ -1,4 +1,7 @@
+import logging
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404
@@ -162,8 +165,8 @@ def movements(request):
             try:
                 products = Product.objects.filter(asin__in=unique_asins).values('asin', 'bundle_qty')
                 bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
-            except Exception:
-                pass  # DB unavailable — fall back to bundle_qty=1
+            except Exception as e:
+                logger.error("Failed to query Product bundle_qty: %s", e)
 
         # Calculate units and movement balance
         for log in logs:

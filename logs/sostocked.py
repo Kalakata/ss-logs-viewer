@@ -1,10 +1,13 @@
 import json
+import logging
 import os
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
+
+logger = logging.getLogger(__name__)
 from django.conf import settings
 
 API_URL = "https://api.sostocked.com/order-shipment-logs/logs"
@@ -308,6 +311,10 @@ def _fetch_all_logs(days, bearer_token, cfg, max_pages=0):
         return []
 
     total_pages = data.get("total_pages", 0)
+    total_records = data.get("total", 0)
+    page1_count = len(data.get("logs", []))
+    logger.info("Period fetch: %d days, total_pages=%d, total_records=%d, page1_count=%d, per_page=%d",
+                days, total_pages, total_records, page1_count, PERIOD_PER_PAGE)
     logs = _parse_period_page(data.get("logs", []))
 
     if total_pages <= 1:
@@ -316,9 +323,10 @@ def _fetch_all_logs(days, bearer_token, cfg, max_pages=0):
     # Determine how many more pages to fetch
     pages_to_fetch = min(total_pages, max_pages) if max_pages else total_pages
     remaining_pages = list(range(2, pages_to_fetch + 1))
+    logger.info("Fetching %d more pages (total_pages=%d, max_pages=%d)", len(remaining_pages), total_pages, max_pages)
 
     # Fetch remaining pages in parallel
-    with ThreadPoolExecutor(max_workers=5) as pool:
+    with ThreadPoolExecutor(max_workers=10) as pool:
         futures = {
             pool.submit(_fetch_period_page, p, days, bearer_token, cfg): p
             for p in remaining_pages
@@ -368,7 +376,7 @@ def fetch_logs_for_asins(asin_list):
     return all_logs
 
 
-MAX_PERIOD_PAGES = 50  # With per_page=1000 and parallel fetch, covers full period
+MAX_PERIOD_PAGES = 0  # 0 = no limit; fetch all pages
 
 
 def fetch_all_logs_by_period(days):
