@@ -11,6 +11,7 @@ API_URL = "https://api.sostocked.com/order-shipment-logs/logs"
 PER_PAGE = 100
 DELAY_BETWEEN_PAGES = 0.3
 DELAY_BETWEEN_ASINS = 0.5
+MANUAL_INV_TYPE = 14000  # Manual inventory change
 
 COLUMNS = [
     {"id": "created_at", "show": 1, "text": "Date Created"},
@@ -101,6 +102,9 @@ def _build_params(page, asin, cfg):
     return params
 
 
+PERIOD_PER_PAGE = 1000  # Larger page size for period queries (API supports it)
+
+
 def _build_params_by_period(page, days, cfg):
     """Build API params that filter by created_at within N days (no ASIN filter)."""
     params = {
@@ -108,9 +112,9 @@ def _build_params_by_period(page, days, cfg):
         "client_secret": cfg["client_secret"],
         "account_id": cfg["account_id"],
         "page": page,
-        "per_page": PER_PAGE,
+        "per_page": PERIOD_PER_PAGE,
         "order_by": "",
-        "order_direction": "ASC",
+        "order_direction": "DESC",
         "term": "",
         "group_by": "",
         "apply_custom_params": 1,
@@ -214,87 +218,115 @@ def _fetch_asin_logs(asin, bearer_token, cfg, max_pages=0):
     return logs
 
 
-def _fetch_all_logs(days, bearer_token, cfg, max_pages=0):
-    """Fetch all log pages for a time period (no ASIN filter). max_pages=0 means all."""
+def _parse_period_page(page_logs):
+    """Parse raw API log records into our internal format."""
+    logs = []
+    for record in page_logs:
+        p = record.get("params") or {}
+        type_id = record.get("type_id", 0)
+        # area_asins is a list of dicts like:
+        #   {"area_type":1, "area_id":5, "area_name":"UK", "values":["B06Y487SQC"]}
+        area_asins = record.get("area_asins") or []
+        filter_asin = ""
+        if isinstance(area_asins, list) and area_asins:
+            first = area_asins[0]
+            if isinstance(first, dict):
+                vals = first.get("values") or []
+                filter_asin = vals[0] if vals else ""
+            else:
+                filter_asin = str(first)
+        if not filter_asin:
+            filter_asin = _format_field(record, "area_asins")
+        logs.append({
+            "filter_asin": filter_asin,
+            "id": record.get("id"),
+            "created_at": record.get("created_at", ""),
+            "order_number": record.get("order_number", ""),
+            "param_diff": record.get("param_diff", 0),
+            "real_diff": record.get("real_diff", 0),
+            "old_qty": p.get("old_quantity"),
+            "new_qty": p.get("new_quantity"),
+            "user_name": record.get("user_name", ""),
+            "description": record.get("description", ""),
+            "vendor_name": record.get("vendor_name", ""),
+            "product_name": record.get("product_name", ""),
+            "order_shipment_id": record.get("order_shipment_id", ""),
+            "type_id": type_id,
+            "type_label": TYPE_LABELS.get(type_id, str(type_id)),
+            "area_asins": _format_field(record, "area_asins"),
+            "area_skus": _format_field(record, "area_skus"),
+            "area_fn_skus": _format_field(record, "area_fn_skus"),
+            "movement_group": None,
+        })
+    return logs
+
+
+def _fetch_period_page(page_num, days, bearer_token, cfg):
+    """Fetch a single page of period logs. Returns parsed log list."""
     headers = {
         "Authorization": f"Bearer {bearer_token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    page = 1
-    total_pages = None
-    logs = []
-
-    while True:
-        try:
-            resp = requests.get(
-                API_URL,
-                headers=headers,
-                params=_build_params_by_period(page, days, cfg),
-                timeout=60,
-            )
-        except Exception:
-            break
-
+    try:
+        resp = requests.get(
+            API_URL, headers=headers,
+            params=_build_params_by_period(page_num, days, cfg),
+            timeout=60,
+        )
         if not resp.ok:
-            break
-
-        try:
-            data = resp.json()
-        except json.JSONDecodeError:
-            break
-
+            return []
+        data = resp.json()
         if data.get("code") != 200:
-            break
+            return []
+        return _parse_period_page(data.get("logs", []))
+    except Exception:
+        return []
 
-        if total_pages is None:
-            total_pages = data.get("total_pages", 0)
 
-        page_logs = data.get("logs", [])
-        if not page_logs:
-            break
+def _fetch_all_logs(days, bearer_token, cfg, max_pages=0):
+    """Fetch log pages for a time period using parallel requests."""
+    headers = {
+        "Authorization": f"Bearer {bearer_token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
 
-        for record in page_logs:
-            p = record.get("params") or {}
-            type_id = record.get("type_id", 0)
-            # area_asins may be a list; use first ASIN as filter_asin
-            area_asins = record.get("area_asins") or []
-            filter_asin = area_asins[0] if isinstance(area_asins, list) and area_asins else _format_field(record, "area_asins")
-            logs.append({
-                "filter_asin": filter_asin,
-                "id": record.get("id"),
-                "created_at": record.get("created_at", ""),
-                "order_number": record.get("order_number", ""),
-                "param_diff": record.get("param_diff", 0),
-                "real_diff": record.get("real_diff", 0),
-                "old_qty": p.get("old_quantity"),
-                "new_qty": p.get("new_quantity"),
-                "user_name": record.get("user_name", ""),
-                "description": record.get("description", ""),
-                "vendor_name": record.get("vendor_name", ""),
-                "product_name": record.get("product_name", ""),
-                "order_shipment_id": record.get("order_shipment_id", ""),
-                "type_id": type_id,
-                "type_label": TYPE_LABELS.get(type_id, str(type_id)),
-                "area_asins": _format_field(record, "area_asins"),
-                "area_skus": _format_field(record, "area_skus"),
-                "area_fn_skus": _format_field(record, "area_fn_skus"),
-                "movement_group": None,
-            })
+    # First request: get page 1 and discover total_pages
+    try:
+        resp = requests.get(
+            API_URL, headers=headers,
+            params=_build_params_by_period(1, days, cfg),
+            timeout=60,
+        )
+        if not resp.ok:
+            return []
+        data = resp.json()
+        if data.get("code") != 200:
+            return []
+    except Exception:
+        return []
 
-        if page >= total_pages:
-            break
-        if max_pages and page >= max_pages:
-            break
+    total_pages = data.get("total_pages", 0)
+    logs = _parse_period_page(data.get("logs", []))
 
-        page += 1
-        if DELAY_BETWEEN_PAGES > 0:
-            time.sleep(DELAY_BETWEEN_PAGES)
+    if total_pages <= 1:
+        return logs
+
+    # Determine how many more pages to fetch
+    pages_to_fetch = min(total_pages, max_pages) if max_pages else total_pages
+    remaining_pages = list(range(2, pages_to_fetch + 1))
+
+    # Fetch remaining pages in parallel
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        futures = {
+            pool.submit(_fetch_period_page, p, days, bearer_token, cfg): p
+            for p in remaining_pages
+        }
+        for future in as_completed(futures):
+            logs.extend(future.result())
 
     return logs
-
-
-MANUAL_INV_TYPE = 14000  # Manual inventory change
 
 
 def _detect_movements(logs):
@@ -336,11 +368,14 @@ def fetch_logs_for_asins(asin_list):
     return all_logs
 
 
+MAX_PERIOD_PAGES = 50  # With per_page=1000 and parallel fetch, covers full period
+
+
 def fetch_all_logs_by_period(days):
     """Fetch all SoStocked logs within the last N days.
     Returns combined list sorted by created_at DESC."""
     bearer_token, cfg = _load_credentials()
-    logs = _fetch_all_logs(days, bearer_token, cfg)
+    logs = _fetch_all_logs(days, bearer_token, cfg, max_pages=MAX_PERIOD_PAGES)
     _detect_movements(logs)
     logs.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return logs

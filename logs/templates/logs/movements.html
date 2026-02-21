@@ -26,6 +26,7 @@
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
   .logs-table tbody tr.collapsed-row { display: none; }
+  .logs-table tbody tr.movement-separator > td { border-top: 3px solid #cbd5e1; }
 
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
@@ -33,7 +34,6 @@
 
   .movement-row > td { background: #fefce8 !important; }
   .movement-mismatch > td { background: #fef2f2 !important; }
-  .movement-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
 
   .asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e0f2fe; color: #0369a1; font-size: 11px; }
   .qty-change { color: #888; font-size: 11px; }
@@ -48,6 +48,20 @@
 {% if error %}
   <div style="padding:8px 12px;background:#fef2f2;color:#dc2626;font-size:12px;border-bottom:1px solid #fecaca;">Error: {{ error }}</div>
 {% endif %}
+
+{% if days is None %}
+  <div style="padding:40px;text-align:center;">
+    <div style="color:#555;font-size:14px;margin-bottom:16px;">Select a time period to load all cross-ASIN movements</div>
+    <form method="get" action="/movements/" style="display:inline-flex;align-items:center;gap:8px;">
+      <select name="days" style="height:32px;font-size:13px;padding:0 8px;border:1px solid #ccc;border-radius:4px;">
+        {% for choice in period_choices %}
+          <option value="{{ choice }}" {% if choice == 60 %}selected{% endif %}>{{ choice }} days</option>
+        {% endfor %}
+      </select>
+      <button type="submit" style="height:32px;padding:0 16px;font-size:13px;background:#1e40af;color:#fff;border:none;border-radius:4px;cursor:pointer;">Load Movements</button>
+    </form>
+  </div>
+{% else %}
 
 <div class="toolbar">
   <form method="get" action="/movements/" style="display:flex;align-items:center;gap:6px;margin:0;">
@@ -72,14 +86,11 @@
   <table class="logs-table" id="logs-table">
     <thead>
       <tr>
-        <th style="width:14px;"></th>
         <th>Date</th>
-        <th>Mv#</th>
         <th>ASIN</th>
         <th style="text-align:right;">Diff</th>
         <th style="text-align:right;">Units</th>
         <th>Qty</th>
-        <th style="text-align:right;">Net Units</th>
         <th>Product</th>
         <th>Warehouse</th>
         <th>User</th>
@@ -88,17 +99,15 @@
     </thead>
     <tbody>
       {% for log in logs %}
-      <tr class="{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}"
-          data-balanced="{{ log.movement_balanced|yesno:'1,0' }}"
-          data-movement="{{ log.movement_group }}">
-        <td><span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span></td>
+      <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% endif %}"
+          data-balanced="{% if log.movement_group %}{{ log.movement_balanced|yesno:'1,0' }}{% endif %}"
+          data-movement="{{ log.movement_group|default:'' }}"
+          data-standalone="{% if not log.movement_group %}1{% endif %}">
         <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
-        <td style="color:#b45309;font-weight:600;font-size:11px;">#{{ log.movement_group }}</td>
         <td><span class="asin-tag">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
         <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}</td>
         <td style="text-align:right;" class="units-val {% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}</td>
         <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
-        <td style="text-align:right;" class="{% if log.movement_net_units != 0 %}diff-neg{% else %}diff-zero{% endif %}">{{ log.movement_net_units }}</td>
         <td style="font-size:11px;">{{ log.product_name }}</td>
         <td style="font-size:11px;color:#7c3aed;">{{ log.vendor_name }}</td>
         <td style="white-space:nowrap;">{{ log.user_name }}</td>
@@ -108,7 +117,9 @@
     </tbody>
   </table>
 {% elif not error %}
-  <div class="empty-state">No cross-ASIN movements found in the last {{ days }} days.</div>
+  <div class="empty-state">No manual inventory changes found in the last {{ days }} days.</div>
+{% endif %}
+
 {% endif %}
 {% endblock %}
 
@@ -121,11 +132,23 @@
   const rows = document.querySelectorAll('#logs-table tbody tr');
   let showOnlyMismatch = false;
 
+  // Add separator classes between different movement groups and standalone rows
+  let prevMovement = null;
+  rows.forEach(row => {
+    const mv = row.dataset.movement;
+    const standalone = row.dataset.standalone === '1';
+    // Separator when: changing between groups, or transitioning to/from standalone
+    if (prevMovement !== null && (mv !== prevMovement || standalone)) {
+      row.classList.add('movement-separator');
+    }
+    prevMovement = standalone ? '__standalone__' + row.rowIndex : mv;
+  });
+
   btnMismatch.addEventListener('click', function() {
     showOnlyMismatch = !showOnlyMismatch;
     this.classList.toggle('active', showOnlyMismatch);
     rows.forEach(row => {
-      if (showOnlyMismatch && row.dataset.balanced === '1') {
+      if (showOnlyMismatch && (row.dataset.balanced === '1' || row.dataset.standalone === '1')) {
         row.classList.add('collapsed-row');
       } else {
         row.classList.remove('collapsed-row');

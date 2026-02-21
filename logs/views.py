@@ -125,13 +125,23 @@ def group_logs(request, group_id):
     })
 
 
-PERIOD_CHOICES = [7, 14, 30, 60, 90]
+PERIOD_CHOICES = [1, 3, 7, 14, 30, 60, 90]
 
 
 def movements(request):
-    days = request.GET.get('days', '60')
+    days_param = request.GET.get('days')
+    if days_param is None:
+        # No period selected yet — show picker only
+        return render(request, 'logs/movements.html', {
+            'logs': [],
+            'error': None,
+            'days': None,
+            'period_choices': PERIOD_CHOICES,
+            'movement_count': 0,
+        })
+
     try:
-        days = int(days)
+        days = int(days_param)
     except ValueError:
         days = 60
     if days not in PERIOD_CHOICES:
@@ -143,23 +153,26 @@ def movements(request):
         all_logs = fetch_all_logs_by_period(days)
 
         # Keep only type_id=14000 (manual inventory change)
-        manual_logs = [l for l in all_logs if l['type_id'] == 14000]
-
-        # Keep only rows that are part of a detected movement (2+ ASINs at same timestamp)
-        logs = [l for l in manual_logs if l.get('movement_group')]
+        logs = [l for l in all_logs if l['type_id'] == 14000]
 
         # Collect unique ASINs and look up bundle_qty in one query
-        unique_asins = list(set(l['filter_asin'] for l in logs if l['filter_asin']))
+        unique_asins = list({l['filter_asin'] for l in logs if l['filter_asin']})
         bundle_map = {}
         if unique_asins:
-            products = Product.objects.filter(asin__in=unique_asins).values('asin', 'bundle_qty')
-            bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
+            try:
+                products = Product.objects.filter(asin__in=unique_asins).values('asin', 'bundle_qty')
+                bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
+            except Exception:
+                pass  # DB unavailable — fall back to bundle_qty=1
 
         # Calculate units and movement balance
         for log in logs:
             bq = bundle_map.get(log['filter_asin'], 1)
             log['bundle_qty'] = bq
             log['units'] = (log['param_diff'] or 0) * bq
+            # Defaults for standalone (non-movement) entries
+            log.setdefault('movement_balanced', None)
+            log['movement_net_units'] = 0
 
         movement_groups = defaultdict(list)
         for log in logs:
