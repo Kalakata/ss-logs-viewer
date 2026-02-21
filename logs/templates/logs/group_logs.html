@@ -35,7 +35,7 @@
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
   .logs-table tbody tr { border-left: 3px solid transparent; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
-  .logs-table tbody tr.collapsed-row > td { padding: 0; height: 0; font-size: 0; line-height: 0; border: none; }
+  .logs-table tbody tr.collapsed-row { display: none; }
   .logs-table tbody tr.chart-target > td { background: #dbeafe !important; }
 
   .diff-pos { color: #16a34a; font-weight: 600; }
@@ -373,7 +373,7 @@
         ctx.save();
 
         // Sort by pixel position and stagger labels that overlap
-        const minLabelGap = 60; // px
+        const minLabelGap = 100; // px
         const drawn = []; // track pixel positions of drawn labels
 
         chart._movementLines.forEach(ml => {
