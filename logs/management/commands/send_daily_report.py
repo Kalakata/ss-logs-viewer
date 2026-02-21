@@ -1,6 +1,7 @@
 import csv
 import io
 import logging
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from django.conf import settings
@@ -46,13 +47,31 @@ class Command(BaseCommand):
             log['bundle_qty'] = bq
             log['units'] = (log['param_diff'] or 0) * bq
 
+        # Detect movement groups (same timestamp, 2+ ASINs) and check balance
+        by_timestamp = defaultdict(list)
+        for log in logs:
+            by_timestamp[log['created_at']].append(log)
+
+        for ts, group in by_timestamp.items():
+            asins_involved = {l['filter_asin'] for l in group}
+            if len(asins_involved) < 2:
+                for l in group:
+                    l['mismatch'] = ''
+                continue
+            total_units = sum(l['units'] for l in group)
+            balanced = total_units == 0
+            for l in group:
+                l['mismatch'] = '' if balanced else 'MISMATCH'
+
         # Sort by date descending
         logs.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+
+        mismatch_count = sum(1 for l in logs if l.get('mismatch') == 'MISMATCH')
 
         # Build CSV
         buf = io.StringIO()
         writer = csv.writer(buf)
-        writer.writerow(['Date', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User'])
+        writer.writerow(['Date', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Mismatch'])
         for l in logs:
             old_q = l.get('old_qty')
             new_q = l.get('new_qty')
@@ -66,18 +85,23 @@ class Command(BaseCommand):
                 l.get('product_name', ''),
                 l.get('description', ''),
                 l.get('user_name', ''),
+                l.get('mismatch', ''),
             ])
 
         today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
         filename = f'movements_{today}.csv'
 
+        body = f'{len(logs)} manual inventory changes in the last 24 hours.'
+        if mismatch_count:
+            body += f'\n{mismatch_count} rows with MISMATCH (units don\'t balance).'
+
         email = EmailMessage(
             subject=f'Daily Movements Report — {today}',
-            body=f'{len(logs)} manual inventory changes in the last 24 hours.',
+            body=body,
             from_email=settings.EMAIL_HOST_USER,
             to=recipients,
         )
         email.attach(filename, buf.getvalue(), 'text/csv')
         email.send()
 
-        self.stdout.write(self.style.SUCCESS(f'Report sent to {", ".join(recipients)} ({len(logs)} rows).'))
+        self.stdout.write(self.style.SUCCESS(f'Report sent to {", ".join(recipients)} ({len(logs)} rows, {mismatch_count} mismatches).'))
