@@ -95,6 +95,12 @@
     </select>
     <button id="btn-sanitize" class="btn-tool">Sanitize</button>
     <button id="btn-group-shipment" class="btn-tool">Group by shipment</button>
+    <select id="filter-group-impact" style="display:none;">
+      <option value="">All groups</option>
+      <option value="nonzero">Net changed</option>
+      <option value="positive">Net positive</option>
+      <option value="negative">Net negative</option>
+    </select>
   </div>
 
   <table class="logs-table" id="logs-table">
@@ -158,6 +164,7 @@
   let collapsedGroups = new Set();
   const originalOrder = Array.from(rows);
   const btnGroupShipment = document.getElementById('btn-group-shipment');
+  const filterGroupImpact = document.getElementById('filter-group-impact');
 
   const ASIN_COLORS = [
     {bg:'#dbeafe',fg:'#1e40af'}, {bg:'#dcfce7',fg:'#166534'},
@@ -197,15 +204,35 @@
   }
 
   function updateShipmentHeaders() {
+    const impact = filterGroupImpact.value;
     document.querySelectorAll('.shipment-header').forEach(header => {
       const sid = header.dataset.shipmentId;
-      let any = false;
-      for (let i = 0; i < rows.length; i++) {
-        if (rows[i].dataset.shipmentGroup === sid && rows[i].dataset.filtered !== 'hidden') {
-          any = true; break;
+      const net = parseInt(header.dataset.netDiff) || 0;
+
+      // Impact filter
+      let passImpact = true;
+      if (impact === 'positive' && net <= 0) passImpact = false;
+      if (impact === 'negative' && net >= 0) passImpact = false;
+      if (impact === 'nonzero' && net === 0) passImpact = false;
+
+      // Row filter — header visible if at least one detail row passes
+      let anyRow = false;
+      if (passImpact) {
+        for (let i = 0; i < rows.length; i++) {
+          if (rows[i].dataset.shipmentGroup === sid && rows[i].dataset.filtered !== 'hidden') {
+            anyRow = true; break;
+          }
         }
       }
-      header.style.display = any ? '' : 'none';
+
+      const visible = passImpact && anyRow;
+      header.style.display = visible ? '' : 'none';
+      // Hide detail rows of filtered-out groups
+      if (!visible) {
+        rows.forEach(row => {
+          if (row.dataset.shipmentGroup === sid) row.style.display = 'none';
+        });
+      }
     });
   }
 
@@ -237,6 +264,10 @@
       if (!minDate || dateText < minDate) minDate = dateText;
       if (!maxDate || dateText > maxDate) maxDate = dateText;
     });
+
+    // Store total net diff on header for impact filtering
+    const totalNet = Object.values(asinDiffs).reduce((s, v) => s + v, 0);
+    tr.dataset.netDiff = totalNet;
 
     // Chevron
     const chevron = el('span', 'sh-chevron', '\u25BC');
@@ -351,10 +382,14 @@
     btnGroupShipment.addEventListener('click', function() {
       groupedMode = !groupedMode;
       this.classList.toggle('active', groupedMode);
+      filterGroupImpact.style.display = groupedMode ? '' : 'none';
+      if (!groupedMode) filterGroupImpact.value = '';
       if (groupedMode) enterGroupedMode();
       else exitGroupedMode();
     });
   }
+
+  filterGroupImpact.addEventListener('change', applyFilters);
 
   document.getElementById('logs-table').addEventListener('click', function(e) {
     const tag = e.target.closest('.asin-tag');
