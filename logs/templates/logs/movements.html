@@ -1,0 +1,137 @@
+{% extends "logs/base.html" %}
+
+{% block title %}All Movements — SS Logs{% endblock %}
+
+{% block header_right %}
+<div style="display:flex;align-items:center;gap:8px;margin-left:auto;font-size:12px;color:#a0a0b0;">
+  <span>All Movements</span>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  :root { --toolbar-h: 33px; }
+
+  .toolbar { position: sticky; top: var(--header-h); z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 4px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; height: var(--toolbar-h); }
+  .toolbar select { height: 24px; font-size: 11px; padding: 0 4px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
+  .toolbar .btn-tool { height: 24px; font-size: 11px; padding: 0 8px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; color: #555; }
+  .toolbar .btn-tool:hover { background: #f0f0f0; }
+  .toolbar .btn-tool.active { background: #ffc107; border-color: #ffc107; color: #000; }
+  .toolbar .meta { color: #888; font-size: 11px; }
+  .toolbar .sep { width: 1px; height: 16px; background: #ddd; }
+
+  .logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .logs-table thead { position: sticky; top: calc(var(--header-h) + var(--toolbar-h)); z-index: 40; }
+  .logs-table th { background: #f0f1f3; padding: 3px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
+  .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
+  .logs-table tbody tr:hover > td { background: #f8f9fb; }
+  .logs-table tbody tr.collapsed-row { display: none; }
+
+  .diff-pos { color: #16a34a; font-weight: 600; }
+  .diff-neg { color: #b45309; font-weight: 600; }
+  .diff-zero { color: #999; }
+
+  .movement-row > td { background: #fefce8 !important; }
+  .movement-mismatch > td { background: #fef2f2 !important; }
+  .movement-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
+
+  .asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e0f2fe; color: #0369a1; font-size: 11px; }
+  .qty-change { color: #888; font-size: 11px; }
+  .desc { color: #666; word-break: break-word; }
+  .units-val { font-size: 11px; }
+
+  .empty-state { padding: 40px; text-align: center; color: #999; font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% if error %}
+  <div style="padding:8px 12px;background:#fef2f2;color:#dc2626;font-size:12px;border-bottom:1px solid #fecaca;">Error: {{ error }}</div>
+{% endif %}
+
+<div class="toolbar">
+  <form method="get" action="/movements/" style="display:flex;align-items:center;gap:6px;margin:0;">
+    <label style="font-size:11px;color:#888;">Period:</label>
+    <select name="days" onchange="this.form.submit()">
+      {% for choice in period_choices %}
+        <option value="{{ choice }}" {% if choice == days %}selected{% endif %}>{{ choice }} days</option>
+      {% endfor %}
+    </select>
+  </form>
+  <span class="sep"></span>
+  <span class="meta">{{ logs|length }} entries</span>
+  {% if movement_count %}
+    <span class="sep"></span>
+    <span class="meta" style="color:#b45309;">{{ movement_count }} movements</span>
+  {% endif %}
+  <span class="sep"></span>
+  <button id="btn-mismatch" class="btn-tool">Mismatches only</button>
+</div>
+
+{% if logs %}
+  <table class="logs-table" id="logs-table">
+    <thead>
+      <tr>
+        <th style="width:14px;"></th>
+        <th>Date</th>
+        <th>Mv#</th>
+        <th>ASIN</th>
+        <th style="text-align:right;">Diff</th>
+        <th style="text-align:right;">Units</th>
+        <th>Qty</th>
+        <th style="text-align:right;">Net Units</th>
+        <th>Product</th>
+        <th>Warehouse</th>
+        <th>User</th>
+        <th>Description</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for log in logs %}
+      <tr class="{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}"
+          data-balanced="{{ log.movement_balanced|yesno:'1,0' }}"
+          data-movement="{{ log.movement_group }}">
+        <td><span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span></td>
+        <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
+        <td style="color:#b45309;font-weight:600;font-size:11px;">#{{ log.movement_group }}</td>
+        <td><span class="asin-tag">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
+        <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}</td>
+        <td style="text-align:right;" class="units-val {% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}</td>
+        <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
+        <td style="text-align:right;" class="{% if log.movement_net_units != 0 %}diff-neg{% else %}diff-zero{% endif %}">{{ log.movement_net_units }}</td>
+        <td style="font-size:11px;">{{ log.product_name }}</td>
+        <td style="font-size:11px;color:#7c3aed;">{{ log.vendor_name }}</td>
+        <td style="white-space:nowrap;">{{ log.user_name }}</td>
+        <td class="desc">{{ log.description }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% elif not error %}
+  <div class="empty-state">No cross-ASIN movements found in the last {{ days }} days.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+  const btnMismatch = document.getElementById('btn-mismatch');
+  if (!btnMismatch) return;
+
+  const rows = document.querySelectorAll('#logs-table tbody tr');
+  let showOnlyMismatch = false;
+
+  btnMismatch.addEventListener('click', function() {
+    showOnlyMismatch = !showOnlyMismatch;
+    this.classList.toggle('active', showOnlyMismatch);
+    rows.forEach(row => {
+      if (showOnlyMismatch && row.dataset.balanced === '1') {
+        row.classList.add('collapsed-row');
+      } else {
+        row.classList.remove('collapsed-row');
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}
