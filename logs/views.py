@@ -112,28 +112,6 @@ def group_logs(request, group_id):
         for l in logs
     ]
 
-    # Pre-compute movement flows (source ASIN → target ASIN)
-    movement_flows = []
-    if movement_count:
-        mg = defaultdict(list)
-        for l in logs:
-            if l.get('movement_group'):
-                mg[l['movement_group']].append(l)
-        flow_map = defaultdict(lambda: {'count': 0, 'units': 0})
-        for group_entries in mg.values():
-            sources = [e for e in group_entries if e['param_diff'] < 0]
-            targets = [e for e in group_entries if e['param_diff'] > 0]
-            for s in sources:
-                for t in targets:
-                    key = (s['filter_asin'], t['filter_asin'])
-                    flow_map[key]['count'] += 1
-                    flow_map[key]['units'] += abs(s['param_diff'])
-        movement_flows = sorted(
-            [{'src': k[0], 'dst': k[1], 'count': v['count'], 'units': v['units']}
-             for k, v in flow_map.items()],
-            key=lambda x: -x['units'],
-        )
-
     return render(request, 'logs/group_logs.html', {
         'group': group,
         'products': products,
@@ -143,5 +121,4 @@ def group_logs(request, group_id):
         'movement_count': movement_count,
         'event_types': event_types,
         'log_data': log_data,
-        'movement_flows': movement_flows,
     })

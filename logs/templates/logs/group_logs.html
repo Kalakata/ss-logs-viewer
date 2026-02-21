@@ -29,14 +29,6 @@
   .chart-panel.collapsed { max-height: 0 !important; border-bottom: none; }
   .chart-panel canvas { width: 100% !important; }
 
-  /* Movement flow panel */
-  .flow-panel { background: #fefce8; border-bottom: 1px solid #ddd; padding: 8px 12px; font-size: 12px; overflow: hidden; transition: max-height 0.2s ease; }
-  .flow-panel.collapsed { max-height: 0 !important; padding: 0 12px; border-bottom: none; }
-  .flow-row { display: inline-flex; align-items: center; gap: 4px; margin-right: 16px; margin-bottom: 2px; white-space: nowrap; }
-  .flow-asin { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 11px; font-weight: 600; }
-  .flow-arrow { color: #b45309; font-size: 10px; }
-  .flow-stat { color: #666; font-size: 11px; }
-
   .logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
   .logs-table thead { position: sticky; top: calc(var(--header-h) + var(--toolbar-h)); z-index: 40; }
   .logs-table th { background: #f0f1f3; padding: 3px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
@@ -106,29 +98,12 @@
     <button id="btn-hide-zero-net" class="btn-tool">Hide net-zero</button>
     <span class="sep"></span>
     <button id="btn-chart" class="btn-tool active">Chart</button>
-    {% if movement_flows %}
-    <button id="btn-flows" class="btn-tool active">Flows</button>
-    {% endif %}
   </div>
 
   <!-- Stock balance chart -->
   <div class="chart-panel" id="chart-panel" style="max-height:260px;">
     <canvas id="stock-chart" height="240"></canvas>
   </div>
-
-  <!-- Movement flow summary -->
-  {% if movement_flows %}
-  <div class="flow-panel" id="flow-panel" style="max-height:100px;">
-    {% for flow in movement_flows %}
-    <span class="flow-row">
-      <span class="flow-asin" data-flow-asin="{{ flow.src }}">{{ flow.src }}</span>
-      <span class="flow-arrow">&rarr;</span>
-      <span class="flow-asin" data-flow-asin="{{ flow.dst }}">{{ flow.dst }}</span>
-      <span class="flow-stat">{{ flow.units }}u ({{ flow.count }}x)</span>
-    </span>
-    {% endfor %}
-  </div>
-  {% endif %}
 
   {{ log_data|json_script:"log-data" }}
 
@@ -201,15 +176,6 @@
   const asinColorMap = {};
   document.querySelectorAll('#filter-asin option').forEach((opt, i) => {
     if (opt.value) asinColorMap[opt.value] = i - 1;
-  });
-
-  // Color flow ASIN tags
-  document.querySelectorAll('.flow-asin').forEach(el => {
-    const asin = el.dataset.flowAsin;
-    const idx = asinColorMap[asin] !== undefined ? asinColorMap[asin] : 0;
-    const c = ASIN_COLORS[idx % ASIN_COLORS.length];
-    el.style.background = c.bg;
-    el.style.color = c.fg;
   });
 
   // Build per-ASIN stock balance columns
@@ -328,16 +294,6 @@
     btnChart.addEventListener('click', function() {
       chartPanel.classList.toggle('collapsed');
       this.classList.toggle('active', !chartPanel.classList.contains('collapsed'));
-    });
-  }
-
-  // --- Flow panel toggle ---
-  const btnFlows = document.getElementById('btn-flows');
-  const flowPanel = document.getElementById('flow-panel');
-  if (btnFlows && flowPanel) {
-    btnFlows.addEventListener('click', function() {
-      flowPanel.classList.toggle('collapsed');
-      this.classList.toggle('active', !flowPanel.classList.contains('collapsed'));
     });
   }
 
