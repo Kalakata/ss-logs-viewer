@@ -489,7 +489,7 @@
             }
           },
           zoom: {
-            pan: { enabled: true, mode: 'x' },
+            pan: { enabled: false },
             zoom: {
               wheel: { enabled: true },
               pinch: { enabled: true },
@@ -530,6 +530,25 @@
       }
     });
     stockChart._movementLines = movementLines;
+
+    // Right-click drag to pan
+    const canvas = stockChart.canvas;
+    let panning = false, panStartX = 0;
+    canvas.addEventListener('contextmenu', e => e.preventDefault());
+    canvas.addEventListener('mousedown', e => {
+      if (e.button === 2) { panning = true; panStartX = e.clientX; canvas.style.cursor = 'grabbing'; }
+    });
+    window.addEventListener('mousemove', e => {
+      if (!panning) return;
+      const dx = e.clientX - panStartX;
+      if (Math.abs(dx) > 2) {
+        stockChart.pan({ x: dx }, undefined, 'default');
+        panStartX = e.clientX;
+      }
+    });
+    window.addEventListener('mouseup', e => {
+      if (e.button === 2 && panning) { panning = false; canvas.style.cursor = ''; }
+    });
   }
 
   function updateChart() {
