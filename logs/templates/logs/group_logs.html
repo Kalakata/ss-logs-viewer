@@ -28,6 +28,7 @@
   .logs-table thead { position: sticky; top: calc(var(--header-h) + var(--toolbar-h)); z-index: 40; }
   .logs-table th { background: #f0f1f3; padding: 3px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
+  .logs-table tbody tr { border-left: 3px solid transparent; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
 
   .diff-pos { color: #16a34a; font-weight: 600; }
@@ -51,18 +52,6 @@
   .asin-highlight > td { background: #dbeafe !important; }
 
   .empty-state { padding: 40px; text-align: center; color: #999; font-size: 13px; }
-
-  /* Shipment grouping */
-  .shipment-header > td { background: #f1f5f9; padding: 6px 8px; font-size: 12px; font-weight: 600; border-bottom: 2px solid #e2e8f0; border-left: 3px solid #6366f1; cursor: pointer; user-select: none; }
-  .shipment-header:hover > td { background: #e8edf5; }
-  .shipment-header.collapsed .sh-chevron { transform: rotate(-90deg); }
-  .shipment-header.no-shipment > td { border-left-color: #94a3b8; }
-  .sh-chevron { display: inline-block; transition: transform 0.15s; margin-right: 6px; font-size: 10px; color: #888; }
-  .sh-order { color: #1e40af; margin-right: 8px; }
-  .sh-id { color: #888; font-weight: 400; font-size: 11px; margin-right: 12px; }
-  .sh-dates { color: #666; font-weight: 400; font-size: 11px; margin-right: 12px; }
-  .sh-asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 10px; font-weight: 400; margin-right: 4px; }
-  .sh-count { color: #999; font-weight: 400; font-size: 11px; float: right; }
 
   /* Per-ASIN stock balance columns */
   .stock-col { text-align: center; font-size: 10px; color: #ccc; min-width: 28px; padding: 2px 3px !important; }
@@ -99,13 +88,7 @@
       {% endfor %}
     </select>
     <button id="btn-sanitize" class="btn-tool">Sanitize</button>
-    <button id="btn-group-shipment" class="btn-tool">Group by shipment</button>
-    <select id="filter-group-impact" style="display:none;">
-      <option value="">All groups</option>
-      <option value="nonzero">Net changed</option>
-      <option value="positive">Net positive</option>
-      <option value="negative">Net negative</option>
-    </select>
+    <button id="btn-hide-zero-net" class="btn-tool">Hide net-zero</button>
   </div>
 
   <table class="logs-table" id="logs-table">
@@ -164,12 +147,7 @@
   let sanitize = false;
   let highlightedAsin = null;
 
-  // Shipment grouping state
-  let groupedMode = false;
-  let collapsedGroups = new Set();
   const originalOrder = Array.from(rows);
-  const btnGroupShipment = document.getElementById('btn-group-shipment');
-  const filterGroupImpact = document.getElementById('filter-group-impact');
 
   const ASIN_COLORS = [
     {bg:'#dbeafe',fg:'#1e40af'}, {bg:'#dcfce7',fg:'#166534'},
@@ -181,24 +159,11 @@
     if (opt.value) asinColorMap[opt.value] = i - 1;
   });
 
-  // Global latest qty per ASIN (first occurrence in DESC order = most recent)
-  const asinLatestQty = {};
-  originalOrder.forEach(row => {
-    const asin = row.dataset.asin;
-    if (asinLatestQty[asin] === undefined) {
-      const qtyText = row.querySelector('td:nth-child(6)').textContent.trim();
-      const parts = qtyText.split('\u2192');
-      if (parts.length === 2) asinLatestQty[asin] = parts[1].trim();
-    }
-  });
-
   // Build per-ASIN stock balance columns
   const asinList = [];
   document.querySelectorAll('#filter-asin option').forEach(opt => {
     if (opt.value) asinList.push(opt.value);
   });
-  const COL_COUNT = 10 + asinList.length;
-
   if (asinList.length > 0) {
     const headerRow = document.querySelector('#logs-table thead tr');
     asinList.forEach(asin => {
@@ -234,11 +199,32 @@
     });
   }
 
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text) e.textContent = text;
-    return e;
+  // Shipment swimlane colors
+  const SWIMLANE_PALETTE = ['#4f46e5','#ec4899','#f59e0b','#10b981','#3b82f6','#8b5cf6','#ef4444','#14b8a6','#f97316','#84cc16'];
+  originalOrder.forEach(row => {
+    const sid = row.dataset.shipmentId;
+    if (sid) {
+      row.style.borderLeftColor = SWIMLANE_PALETTE[parseInt(sid) % SWIMLANE_PALETTE.length];
+    }
+  });
+
+  // Precompute zero-net shipments (all ASINs net to 0)
+  const zeroNetShipments = new Set();
+  const btnHideZeroNet = document.getElementById('btn-hide-zero-net');
+  let hideZeroNet = false;
+  {
+    const shipDiffs = {};
+    originalOrder.forEach(row => {
+      const sid = row.dataset.shipmentId;
+      if (!sid) return;
+      if (!shipDiffs[sid]) shipDiffs[sid] = {};
+      const asin = row.dataset.asin;
+      const diff = parseInt(row.dataset.diff) || 0;
+      shipDiffs[sid][asin] = (shipDiffs[sid][asin] || 0) + diff;
+    });
+    Object.entries(shipDiffs).forEach(([sid, asins]) => {
+      if (Object.values(asins).every(v => v === 0)) zeroNetShipments.add(sid);
+    });
   }
 
   function applyFilters() {
@@ -251,189 +237,11 @@
       if (typeVal === 'warehouse' && parseInt(row.dataset.diff) === 0) show = false;
       if (typeVal.startsWith('type_') && row.dataset.type !== typeVal.slice(5)) show = false;
       if (sanitize && HIDDEN_TYPES.has(row.dataset.type)) show = false;
+      if (hideZeroNet && zeroNetShipments.has(row.dataset.shipmentId)) show = false;
 
-      row.dataset.filtered = show ? '' : 'hidden';
-      const collapsed = groupedMode && row.dataset.shipmentGroup !== undefined
-                        && collapsedGroups.has(row.dataset.shipmentGroup);
-      row.style.display = (!show || collapsed) ? 'none' : '';
+      row.style.display = show ? '' : 'none';
       row.classList.toggle('asin-highlight', highlightedAsin && row.dataset.asin === highlightedAsin);
     });
-    if (groupedMode) updateShipmentHeaders();
-  }
-
-  function updateShipmentHeaders() {
-    const impact = filterGroupImpact.value;
-    document.querySelectorAll('.shipment-header').forEach(header => {
-      const sid = header.dataset.shipmentId;
-      const net = parseInt(header.dataset.netDiff) || 0;
-
-      // Impact filter
-      let passImpact = true;
-      if (impact === 'positive' && net <= 0) passImpact = false;
-      if (impact === 'negative' && net >= 0) passImpact = false;
-      if (impact === 'nonzero' && net === 0) passImpact = false;
-
-      // Row filter — header visible if at least one detail row passes
-      let anyRow = false;
-      if (passImpact) {
-        for (let i = 0; i < rows.length; i++) {
-          if (rows[i].dataset.shipmentGroup === sid && rows[i].dataset.filtered !== 'hidden') {
-            anyRow = true; break;
-          }
-        }
-      }
-
-      const visible = passImpact && anyRow;
-      header.style.display = visible ? '' : 'none';
-      // Hide detail rows of filtered-out groups
-      if (!visible) {
-        rows.forEach(row => {
-          if (row.dataset.shipmentGroup === sid) row.style.display = 'none';
-        });
-      }
-    });
-  }
-
-  function updateCollapseVisibility() {
-    rows.forEach(row => {
-      if (row.dataset.filtered === 'hidden') return;
-      row.style.display = collapsedGroups.has(row.dataset.shipmentGroup) ? 'none' : '';
-    });
-  }
-
-  function buildShipmentHeader(sid, group) {
-    const tr = document.createElement('tr');
-    tr.className = 'shipment-header' + (!sid ? ' no-shipment' : '');
-    tr.dataset.shipmentId = sid;
-    const td = document.createElement('td');
-    td.colSpan = COL_COUNT;
-
-    const rowList = group.rows;
-    const asinDiffs = {};
-    let minDate = null, maxDate = null;
-    const asins = new Set();
-
-    rowList.forEach(row => {
-      const asin = row.dataset.asin;
-      asins.add(asin);
-      const diff = parseInt(row.dataset.diff) || 0;
-      asinDiffs[asin] = (asinDiffs[asin] || 0) + diff;
-      const dateText = row.querySelector('td:nth-child(2)').textContent.trim();
-      if (!minDate || dateText < minDate) minDate = dateText;
-      if (!maxDate || dateText > maxDate) maxDate = dateText;
-    });
-
-    // Store total net diff on header for impact filtering
-    const totalNet = Object.values(asinDiffs).reduce((s, v) => s + v, 0);
-    tr.dataset.netDiff = totalNet;
-
-    // Chevron
-    const chevron = el('span', 'sh-chevron', '\u25BC');
-    td.appendChild(chevron);
-
-    // Order name + shipment ID
-    if (sid) {
-      const order = el('span', 'sh-order', group.orderName || 'Unknown order');
-      td.appendChild(order);
-      const idSpan = el('span', 'sh-id', '#' + sid);
-      td.appendChild(idSpan);
-    } else {
-      const noShip = el('span', 'sh-order', 'No shipment');
-      noShip.style.color = '#64748b';
-      td.appendChild(noShip);
-    }
-
-    // ASIN tags with net diff inline
-    asins.forEach(asin => {
-      const idx = asinColorMap[asin] !== undefined ? asinColorMap[asin] : 0;
-      const c = ASIN_COLORS[idx % ASIN_COLORS.length];
-      const net = asinDiffs[asin] || 0;
-      const sign = net > 0 ? '+' : '';
-      const tag = el('span', 'sh-asin-tag', asin + ' ');
-      tag.style.background = c.bg;
-      tag.style.color = c.fg;
-      const diff = el('span', net > 0 ? 'diff-pos' : net < 0 ? 'diff-neg' : 'diff-zero', sign + net);
-      diff.style.fontSize = '10px';
-      tag.appendChild(diff);
-      if (asinLatestQty[asin] !== undefined) {
-        const qty = el('span', '', ' (' + asinLatestQty[asin] + ')');
-        qty.style.fontSize = '10px';
-        qty.style.color = '#666';
-        tag.appendChild(qty);
-      }
-      td.appendChild(tag);
-    });
-
-    // Date range
-    if (minDate && maxDate) {
-      const d1 = minDate.substring(0, 10), d2 = maxDate.substring(0, 10);
-      const dates = el('span', 'sh-dates', d1 === d2 ? d1 : d1 + ' \u2014 ' + d2);
-      td.appendChild(dates);
-    }
-
-    // Entry count
-    td.appendChild(el('span', 'sh-count', rowList.length + ' entries'));
-
-    tr.appendChild(td);
-
-    tr.addEventListener('click', function() {
-      this.classList.toggle('collapsed');
-      if (collapsedGroups.has(sid)) collapsedGroups.delete(sid);
-      else collapsedGroups.add(sid);
-      updateCollapseVisibility();
-    });
-
-    return tr;
-  }
-
-  function clearChildren(node) {
-    while (node.firstChild) node.removeChild(node.firstChild);
-  }
-
-  function enterGroupedMode() {
-    const tbody = document.querySelector('#logs-table tbody');
-    const groups = new Map();
-    originalOrder.forEach(row => {
-      const sid = row.dataset.shipmentId || '';
-      if (!groups.has(sid)) groups.set(sid, { rows: [], orderName: row.dataset.orderNumber || '' });
-      groups.get(sid).rows.push(row);
-    });
-
-    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
-      if (!a) return 1;
-      if (!b) return -1;
-      const dateA = groups.get(a).rows[0].querySelector('td:nth-child(2)').textContent.trim();
-      const dateB = groups.get(b).rows[0].querySelector('td:nth-child(2)').textContent.trim();
-      return dateB.localeCompare(dateA);
-    });
-
-    clearChildren(tbody);
-    collapsedGroups.clear();
-    sortedKeys.forEach(sid => {
-      collapsedGroups.add(sid);
-      const group = groups.get(sid);
-      const header = buildShipmentHeader(sid, group);
-      header.classList.add('collapsed');
-      tbody.appendChild(header);
-      group.rows.forEach(row => {
-        row.dataset.shipmentGroup = sid;
-        tbody.appendChild(row);
-      });
-    });
-    applyFilters();
-  }
-
-  function exitGroupedMode() {
-    const tbody = document.querySelector('#logs-table tbody');
-    tbody.querySelectorAll('.shipment-header').forEach(h => h.remove());
-    clearChildren(tbody);
-    originalOrder.forEach(row => {
-      delete row.dataset.shipmentGroup;
-      delete row.dataset.filtered;
-      tbody.appendChild(row);
-    });
-    collapsedGroups.clear();
-    applyFilters();
   }
 
   btnSanitize.addEventListener('click', function() {
@@ -442,18 +250,11 @@
     applyFilters();
   });
 
-  if (btnGroupShipment) {
-    btnGroupShipment.addEventListener('click', function() {
-      groupedMode = !groupedMode;
-      this.classList.toggle('active', groupedMode);
-      filterGroupImpact.style.display = groupedMode ? '' : 'none';
-      if (!groupedMode) filterGroupImpact.value = '';
-      if (groupedMode) enterGroupedMode();
-      else exitGroupedMode();
-    });
-  }
-
-  filterGroupImpact.addEventListener('change', applyFilters);
+  btnHideZeroNet.addEventListener('click', function() {
+    hideZeroNet = !hideZeroNet;
+    this.classList.toggle('active', hideZeroNet);
+    applyFilters();
+  });
 
   document.getElementById('logs-table').addEventListener('click', function(e) {
     const tag = e.target.closest('.asin-tag');
