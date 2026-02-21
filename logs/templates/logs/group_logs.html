@@ -51,6 +51,19 @@
   .asin-highlight > td { background: #dbeafe !important; }
 
   .empty-state { padding: 40px; text-align: center; color: #999; font-size: 13px; }
+
+  /* Shipment grouping */
+  .shipment-header > td { background: #f1f5f9; padding: 6px 8px; font-size: 12px; font-weight: 600; border-bottom: 2px solid #e2e8f0; border-left: 3px solid #6366f1; cursor: pointer; user-select: none; }
+  .shipment-header:hover > td { background: #e8edf5; }
+  .shipment-header.collapsed .sh-chevron { transform: rotate(-90deg); }
+  .shipment-header.no-shipment > td { border-left-color: #94a3b8; }
+  .sh-chevron { display: inline-block; transition: transform 0.15s; margin-right: 6px; font-size: 10px; color: #888; }
+  .sh-order { color: #1e40af; margin-right: 8px; }
+  .sh-id { color: #888; font-weight: 400; font-size: 11px; margin-right: 12px; }
+  .sh-dates { color: #666; font-weight: 400; font-size: 11px; margin-right: 12px; }
+  .sh-asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; font-size: 10px; font-weight: 400; margin-right: 4px; }
+  .sh-net { font-weight: 400; font-size: 11px; margin-left: 8px; }
+  .sh-count { color: #999; font-weight: 400; font-size: 11px; float: right; }
 </style>
 {% endblock %}
 
@@ -82,6 +95,7 @@
       {% endfor %}
     </select>
     <button id="btn-sanitize" class="btn-tool">Sanitize</button>
+    <button id="btn-group-shipment" class="btn-tool">Group by shipment</button>
   </div>
 
   <table class="logs-table" id="logs-table">
@@ -105,7 +119,9 @@
           data-asin="{{ log.filter_asin }}"
           data-diff="{{ log.param_diff }}"
           data-movement="{{ log.movement_group|default_if_none:'' }}"
-          data-type="{{ log.type_id }}">
+          data-type="{{ log.type_id }}"
+          data-shipment-id="{{ log.order_shipment_id|default_if_none:'' }}"
+          data-order-number="{{ log.order_number|default_if_none:'' }}">
         <td>{% if log.movement_group %}<span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span>{% endif %}</td>
         <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
         <td><span class="asin-tag" data-asin="{{ log.filter_asin }}">{{ log.filter_asin }}{% if log.bundle_qty != 1 %}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span>{% endif %}</span></td>
@@ -138,6 +154,29 @@
   let sanitize = false;
   let highlightedAsin = null;
 
+  // Shipment grouping state
+  let groupedMode = false;
+  let collapsedGroups = new Set();
+  const originalOrder = Array.from(rows);
+  const btnGroupShipment = document.getElementById('btn-group-shipment');
+
+  const ASIN_COLORS = [
+    {bg:'#dbeafe',fg:'#1e40af'}, {bg:'#dcfce7',fg:'#166534'},
+    {bg:'#fef3c7',fg:'#92400e'}, {bg:'#fce7f3',fg:'#9d174d'},
+    {bg:'#e0e7ff',fg:'#3730a3'}, {bg:'#f3e8ff',fg:'#7c3aed'},
+  ];
+  const asinColorMap = {};
+  document.querySelectorAll('#filter-asin option').forEach((opt, i) => {
+    if (opt.value) asinColorMap[opt.value] = i - 1;
+  });
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+
   function applyFilters() {
     const typeVal = filterType.value;
     const asinVal = filterAsin.value;
@@ -148,9 +187,163 @@
       if (typeVal === 'warehouse' && parseInt(row.dataset.diff) === 0) show = false;
       if (typeVal.startsWith('type_') && row.dataset.type !== typeVal.slice(5)) show = false;
       if (sanitize && HIDDEN_TYPES.has(row.dataset.type)) show = false;
-      row.style.display = show ? '' : 'none';
+
+      row.dataset.filtered = show ? '' : 'hidden';
+      const collapsed = groupedMode && row.dataset.shipmentGroup !== undefined
+                        && collapsedGroups.has(row.dataset.shipmentGroup);
+      row.style.display = (!show || collapsed) ? 'none' : '';
       row.classList.toggle('asin-highlight', highlightedAsin && row.dataset.asin === highlightedAsin);
     });
+    if (groupedMode) updateShipmentHeaders();
+  }
+
+  function updateShipmentHeaders() {
+    document.querySelectorAll('.shipment-header').forEach(header => {
+      const sid = header.dataset.shipmentId;
+      let any = false;
+      for (let i = 0; i < rows.length; i++) {
+        if (rows[i].dataset.shipmentGroup === sid && rows[i].dataset.filtered !== 'hidden') {
+          any = true; break;
+        }
+      }
+      header.style.display = any ? '' : 'none';
+    });
+  }
+
+  function updateCollapseVisibility() {
+    rows.forEach(row => {
+      if (row.dataset.filtered === 'hidden') return;
+      row.style.display = collapsedGroups.has(row.dataset.shipmentGroup) ? 'none' : '';
+    });
+  }
+
+  function buildShipmentHeader(sid, group) {
+    const tr = document.createElement('tr');
+    tr.className = 'shipment-header' + (!sid ? ' no-shipment' : '');
+    tr.dataset.shipmentId = sid;
+    const td = document.createElement('td');
+    td.colSpan = 10;
+
+    const rowList = group.rows;
+    const asinDiffs = {};
+    let minDate = null, maxDate = null;
+    const asins = new Set();
+
+    rowList.forEach(row => {
+      const asin = row.dataset.asin;
+      asins.add(asin);
+      const diff = parseInt(row.dataset.diff) || 0;
+      asinDiffs[asin] = (asinDiffs[asin] || 0) + diff;
+      const dateText = row.querySelector('td:nth-child(2)').textContent.trim();
+      if (!minDate || dateText < minDate) minDate = dateText;
+      if (!maxDate || dateText > maxDate) maxDate = dateText;
+    });
+
+    // Chevron
+    const chevron = el('span', 'sh-chevron', '\u25BC');
+    td.appendChild(chevron);
+
+    // Order name + shipment ID
+    if (sid) {
+      const order = el('span', 'sh-order', group.orderName || 'Unknown order');
+      td.appendChild(order);
+      const idSpan = el('span', 'sh-id', '#' + sid);
+      td.appendChild(idSpan);
+    } else {
+      const noShip = el('span', 'sh-order', 'No shipment');
+      noShip.style.color = '#64748b';
+      td.appendChild(noShip);
+    }
+
+    // ASIN tags
+    asins.forEach(asin => {
+      const idx = asinColorMap[asin] !== undefined ? asinColorMap[asin] : 0;
+      const c = ASIN_COLORS[idx % ASIN_COLORS.length];
+      const tag = el('span', 'sh-asin-tag', asin);
+      tag.style.background = c.bg;
+      tag.style.color = c.fg;
+      td.appendChild(tag);
+    });
+
+    // Date range
+    if (minDate && maxDate) {
+      const d1 = minDate.substring(0, 10), d2 = maxDate.substring(0, 10);
+      const dates = el('span', 'sh-dates', d1 === d2 ? d1 : d1 + ' \u2014 ' + d2);
+      td.appendChild(dates);
+    }
+
+    // Net qty per ASIN
+    const netSpan = el('span', 'sh-net');
+    Object.keys(asinDiffs).forEach(asin => {
+      const net = asinDiffs[asin];
+      const cls = net > 0 ? 'diff-pos' : net < 0 ? 'diff-neg' : 'diff-zero';
+      const sign = net > 0 ? '+' : '';
+      const s = el('span', cls, '...' + asin.slice(-4) + ': ' + sign + net);
+      s.style.marginRight = '6px';
+      netSpan.appendChild(s);
+    });
+    td.appendChild(netSpan);
+
+    // Entry count
+    td.appendChild(el('span', 'sh-count', rowList.length + ' entries'));
+
+    tr.appendChild(td);
+
+    tr.addEventListener('click', function() {
+      this.classList.toggle('collapsed');
+      if (collapsedGroups.has(sid)) collapsedGroups.delete(sid);
+      else collapsedGroups.add(sid);
+      updateCollapseVisibility();
+    });
+
+    return tr;
+  }
+
+  function clearChildren(node) {
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function enterGroupedMode() {
+    const tbody = document.querySelector('#logs-table tbody');
+    const groups = new Map();
+    originalOrder.forEach(row => {
+      const sid = row.dataset.shipmentId || '';
+      if (!groups.has(sid)) groups.set(sid, { rows: [], orderName: row.dataset.orderNumber || '' });
+      groups.get(sid).rows.push(row);
+    });
+
+    const sortedKeys = Array.from(groups.keys()).sort((a, b) => {
+      if (!a) return 1;
+      if (!b) return -1;
+      const dateA = groups.get(a).rows[0].querySelector('td:nth-child(2)').textContent.trim();
+      const dateB = groups.get(b).rows[0].querySelector('td:nth-child(2)').textContent.trim();
+      return dateB.localeCompare(dateA);
+    });
+
+    clearChildren(tbody);
+    collapsedGroups.clear();
+    sortedKeys.forEach(sid => {
+      const group = groups.get(sid);
+      tbody.appendChild(buildShipmentHeader(sid, group));
+      group.rows.forEach(row => {
+        row.dataset.shipmentGroup = sid;
+        tbody.appendChild(row);
+      });
+    });
+    applyFilters();
+  }
+
+  function exitGroupedMode() {
+    const tbody = document.querySelector('#logs-table tbody');
+    tbody.querySelectorAll('.shipment-header').forEach(h => h.remove());
+    clearChildren(tbody);
+    originalOrder.forEach(row => {
+      delete row.dataset.shipmentGroup;
+      delete row.dataset.filtered;
+      tbody.appendChild(row);
+    });
+    collapsedGroups.clear();
+    applyFilters();
   }
 
   btnSanitize.addEventListener('click', function() {
@@ -158,6 +351,15 @@
     this.classList.toggle('active', sanitize);
     applyFilters();
   });
+
+  if (btnGroupShipment) {
+    btnGroupShipment.addEventListener('click', function() {
+      groupedMode = !groupedMode;
+      this.classList.toggle('active', groupedMode);
+      if (groupedMode) enterGroupedMode();
+      else exitGroupedMode();
+    });
+  }
 
   document.getElementById('logs-table').addEventListener('click', function(e) {
     const tag = e.target.closest('.asin-tag');
