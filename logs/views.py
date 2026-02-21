@@ -5,7 +5,7 @@ from django.shortcuts import render, get_object_or_404
 from django.db.models import Count, Q
 
 from .models import ProductGroup, Product, Barcode
-from .sostocked import fetch_logs_for_asins, TYPE_LABELS
+from .sostocked import fetch_logs_for_asins, fetch_all_logs_by_period, TYPE_LABELS
 
 
 def index(request):
@@ -122,4 +122,68 @@ def group_logs(request, group_id):
         'event_types': event_types,
         'log_data': log_data,
         'bundle_map': bundle_map,
+    })
+
+
+PERIOD_CHOICES = [7, 14, 30, 60, 90]
+
+
+def movements(request):
+    days = request.GET.get('days', '60')
+    try:
+        days = int(days)
+    except ValueError:
+        days = 60
+    if days not in PERIOD_CHOICES:
+        days = 60
+
+    logs = []
+    error = None
+    try:
+        all_logs = fetch_all_logs_by_period(days)
+
+        # Keep only type_id=14000 (manual inventory change)
+        manual_logs = [l for l in all_logs if l['type_id'] == 14000]
+
+        # Keep only rows that are part of a detected movement (2+ ASINs at same timestamp)
+        logs = [l for l in manual_logs if l.get('movement_group')]
+
+        # Collect unique ASINs and look up bundle_qty in one query
+        unique_asins = list(set(l['filter_asin'] for l in logs if l['filter_asin']))
+        bundle_map = {}
+        if unique_asins:
+            products = Product.objects.filter(asin__in=unique_asins).values('asin', 'bundle_qty')
+            bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
+
+        # Calculate units and movement balance
+        for log in logs:
+            bq = bundle_map.get(log['filter_asin'], 1)
+            log['bundle_qty'] = bq
+            log['units'] = (log['param_diff'] or 0) * bq
+
+        movement_groups = defaultdict(list)
+        for log in logs:
+            if log.get('movement_group'):
+                movement_groups[log['movement_group']].append(log)
+        for group_logs_list in movement_groups.values():
+            total_units = sum(l['units'] for l in group_logs_list)
+            for l in group_logs_list:
+                l['movement_balanced'] = (total_units == 0)
+                l['movement_net_units'] = total_units
+
+        # Sort: created_at DESC, negative units last within same timestamp
+        logs.sort(key=lambda x: (x.get('created_at', ''), x.get('units', 0)), reverse=True)
+    except Exception as e:
+        error = str(e)
+
+    movement_count = len(set(
+        l['movement_group'] for l in logs if l.get('movement_group')
+    ))
+
+    return render(request, 'logs/movements.html', {
+        'logs': logs,
+        'error': error,
+        'days': days,
+        'period_choices': PERIOD_CHOICES,
+        'movement_count': movement_count,
     })
