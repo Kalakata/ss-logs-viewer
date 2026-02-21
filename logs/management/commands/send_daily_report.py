@@ -83,7 +83,7 @@ class Command(BaseCommand):
                 l.get('units', 0),
                 qty_change,
                 l.get('product_name', ''),
-                l.get('description', ''),
+                l.get('vendor_name', ''),
                 l.get('user_name', ''),
                 l.get('mismatch', ''),
             ])
