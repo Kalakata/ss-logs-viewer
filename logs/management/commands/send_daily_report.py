@@ -22,6 +22,9 @@ def _to_eet(dt_str):
         return ''
     try:
         dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        # If no timezone info, assume UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
         return dt.astimezone(EET).strftime('%Y-%m-%d %H:%M:%S')
     except (ValueError, TypeError):
         return dt_str
