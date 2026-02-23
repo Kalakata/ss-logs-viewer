@@ -2,7 +2,7 @@ import csv
 import io
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from django.conf import settings
 from django.core.mail import EmailMessage
@@ -12,6 +12,19 @@ from logs.models import Product
 from logs.sostocked import fetch_all_logs_by_period
 
 logger = logging.getLogger(__name__)
+
+EET = timezone(timedelta(hours=2))
+
+
+def _to_eet(dt_str):
+    """Convert a UTC datetime string to EET (UTC+2)."""
+    if not dt_str:
+        return ''
+    try:
+        dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
+        return dt.astimezone(EET).strftime('%Y-%m-%d %H:%M:%S')
+    except (ValueError, TypeError):
+        return dt_str
 
 
 class Command(BaseCommand):
@@ -73,13 +86,13 @@ class Command(BaseCommand):
         buf.write(b'\xef\xbb\xbf')
         text_wrapper = io.TextIOWrapper(buf, encoding='utf-8', newline='')
         writer = csv.writer(text_wrapper)
-        writer.writerow(['Date', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Description', 'Mismatch'])
+        writer.writerow(['Date (EET)', 'ASIN', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Description', 'Mismatch'])
         for l in logs:
             old_q = l.get('old_qty')
             new_q = l.get('new_qty')
             qty_change = f'{old_q} -> {new_q}' if old_q is not None and new_q is not None else ''
             writer.writerow([
-                l.get('created_at', ''),
+                _to_eet(l.get('created_at', '')),
                 l.get('filter_asin', ''),
                 l.get('param_diff', 0),
                 l.get('units', 0),
