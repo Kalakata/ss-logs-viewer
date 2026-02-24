@@ -89,7 +89,7 @@ class Command(BaseCommand):
         buf.write(b'\xef\xbb\xbf')
         text_wrapper = io.TextIOWrapper(buf, encoding='utf-8', newline='')
         writer = csv.writer(text_wrapper)
-        writer.writerow(['Date (EET)', 'ASIN', 'Bundle', 'Diff', 'Units', 'Qty Change', 'Product', 'Warehouse', 'User', 'Description', 'Mismatch'])
+        writer.writerow(['Date (EET)', 'ASIN', 'Bundle', 'Diff', 'Units', 'Qty Change', 'Product', 'Country', 'Warehouse', 'User', 'Description', 'Mismatch'])
         for l in logs:
             old_q = l.get('old_qty')
             new_q = l.get('new_qty')
@@ -103,6 +103,7 @@ class Command(BaseCommand):
                 qty_change,
                 l.get('product_name', ''),
                 l.get('area_name', ''),
+                l.get('vendor_name', ''),
                 l.get('user_name', ''),
                 l.get('description', ''),
                 l.get('mismatch', ''),
