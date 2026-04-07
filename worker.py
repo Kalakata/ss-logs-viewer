@@ -43,12 +43,13 @@ def run_report():
 def main():
     logger.info('Worker started. Sync every %ds, report daily at %02d:00 UTC.', SYNC_INTERVAL, REPORT_HOUR_UTC)
 
-    # On first run with empty DB, do a full backfill
+    # On first run with empty or small DB, do a full backfill
     from logs.models import SoStockedLog
-    if SoStockedLog.objects.count() == 0:
-        logger.info('Empty DB detected, running backfill (3 days)...')
+    db_count = SoStockedLog.objects.count()
+    if db_count < 20000:
+        logger.info('DB has only %d records, running backfill (7 days)...', db_count)
         try:
-            call_command('sync_logs', '--days', '3')
+            call_command('sync_logs', '--days', '7')
         except Exception:
             logger.exception('Backfill failed')
     else:
