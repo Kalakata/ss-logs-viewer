@@ -25,6 +25,18 @@
   .logs-table th { background: #f0f1f3; padding: 5px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
+  .logs-table tbody tr.row-selected > td { background: #dbeafe !important; }
+  .logs-table tbody tr.row-selected:hover > td { background: #bfdbfe !important; }
+  .logs-table tbody { user-select: none; -webkit-user-select: none; }
+
+  .selection-bar { flex-shrink: 0; display: none; background: #1e40af; color: #fff; padding: 6px 12px; font-size: 12px; align-items: center; gap: 12px; }
+  .selection-bar.visible { display: flex; }
+  .selection-bar .sel-stat { font-weight: 600; }
+  .selection-bar .sel-pos { color: #86efac; font-weight: 700; }
+  .selection-bar .sel-neg { color: #fca5a5; font-weight: 700; }
+  .selection-bar .sel-zero { color: #e2e8f0; font-weight: 700; }
+  .selection-bar .sel-reset { background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: #fff; padding: 2px 10px; border-radius: 3px; cursor: pointer; font-size: 11px; }
+  .selection-bar .sel-reset:hover { background: rgba(255,255,255,0.3); }
 
   .units-cell { font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; font-size: 11px; white-space: nowrap; }
   .diff-pos { color: #16a34a; font-weight: 600; }
@@ -109,7 +121,7 @@
   </thead>
   <tbody>
     {% for log in logs %}
-    <tr>
+    <tr data-units="{{ log.param_diff }}">
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
       <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
@@ -140,7 +152,13 @@
 </div>
 {% endif %}
 
+
 </div><!-- .table-wrap -->
+<div class="selection-bar" id="selection-bar">
+  <span class="sel-stat"><span id="sel-count">0</span> selected</span>
+  <span>Net units: <span id="sel-net" class="sel-zero">0</span></span>
+  <button class="sel-reset" id="sel-reset" type="button">Clear selection</button>
+</div>
 
 {% else %}
   <div class="empty-state">No logs found matching your filters.</div>
@@ -161,6 +179,64 @@ document.querySelectorAll('.ss-date').forEach(function(el) {
   el.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
     + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
 });
+
+// --- Row selection for net unit calculation ---
+(function() {
+  var tbody = document.querySelector('.logs-table tbody');
+  if (!tbody) return;
+  var bar = document.getElementById('selection-bar');
+  var countEl = document.getElementById('sel-count');
+  var netEl = document.getElementById('sel-net');
+  var resetBtn = document.getElementById('sel-reset');
+  var dragging = false;
+  var dragSelect = true; // true = selecting, false = deselecting
+
+  function updateBar() {
+    var selected = tbody.querySelectorAll('tr.row-selected');
+    var count = selected.length;
+    var net = 0;
+    selected.forEach(function(tr) { net += parseInt(tr.dataset.units || '0', 10); });
+    countEl.textContent = count;
+    netEl.textContent = (net > 0 ? '+' : '') + net;
+    netEl.className = net > 0 ? 'sel-pos' : net < 0 ? 'sel-neg' : 'sel-zero';
+    bar.classList.toggle('visible', count > 0);
+  }
+
+  function toggleRow(tr, forceState) {
+    if (typeof forceState === 'boolean') {
+      tr.classList.toggle('row-selected', forceState);
+    } else {
+      tr.classList.toggle('row-selected');
+    }
+  }
+
+  tbody.addEventListener('mousedown', function(e) {
+    var tr = e.target.closest('tr');
+    if (!tr || !tr.dataset.units) return;
+    e.preventDefault();
+    dragging = true;
+    dragSelect = !tr.classList.contains('row-selected');
+    toggleRow(tr, dragSelect);
+    updateBar();
+  });
+
+  tbody.addEventListener('mouseover', function(e) {
+    if (!dragging) return;
+    var tr = e.target.closest('tr');
+    if (!tr || !tr.dataset.units) return;
+    toggleRow(tr, dragSelect);
+    updateBar();
+  });
+
+  document.addEventListener('mouseup', function() { dragging = false; });
+
+  resetBtn.addEventListener('click', function() {
+    tbody.querySelectorAll('tr.row-selected').forEach(function(tr) {
+      tr.classList.remove('row-selected');
+    });
+    updateBar();
+  });
+})();
 
 // Convert filter date inputs from browser-local to Pacific (UTC-7) on submit.
 // The DB stores Pacific times, so filter values must be in Pacific to match correctly.
