@@ -336,27 +336,58 @@ def debug_types(request):
         db_total = SoStockedLog.objects.count()
         db_14000 = SoStockedLog.objects.filter(type_id=14000).count()
 
+        # Try to save ONE type 14000 record and report result
+        save_test = None
+        if t14000_sample:
+            l = t14000_sample
+            try:
+                obj = SoStockedLog(
+                    ss_id=l.get('id'),
+                    asin=l.get('filter_asin', ''),
+                    area_name=l.get('area_name', ''),
+                    created_at=l.get('created_at', ''),
+                    order_number=l.get('order_number', ''),
+                    param_diff=l.get('param_diff', 0),
+                    real_diff=l.get('real_diff', 0),
+                    old_qty=l.get('old_qty'),
+                    new_qty=l.get('new_qty'),
+                    user_name=l.get('user_name', ''),
+                    description=l.get('description', ''),
+                    vendor_name=l.get('vendor_name', ''),
+                    product_name=l.get('product_name', ''),
+                    order_shipment_id=str(l.get('order_shipment_id', '')),
+                    type_id=l.get('type_id', 0),
+                )
+                obj.save()
+                save_test = {'status': 'SUCCESS', 'saved_id': obj.ss_id}
+            except Exception as save_err:
+                save_test = {'status': 'FAILED', 'error': str(save_err), 'data': {
+                    'ss_id': l.get('id'), 'asin': l.get('filter_asin'),
+                    'param_diff': l.get('param_diff'), 'real_diff': l.get('real_diff'),
+                    'type_id': l.get('type_id'),
+                    'order_shipment_id': repr(l.get('order_shipment_id')),
+                    'description_len': len(l.get('description', '')),
+                    'product_name_len': len(l.get('product_name', '')),
+                }}
+
+        db_14000 = SoStockedLog.objects.filter(type_id=14000).count()
+
         result = {
             'api_total': len(logs),
             'days': days,
             'records_without_id': len(no_id),
-            'records_without_id_by_type': {
-                str(tid): cnt for tid, cnt in no_id_types.most_common(10)
-            },
             'type_14000': {
                 'api_count': len(t14000),
                 'without_id': len(t14000_no_id),
                 'sample_keys': list(t14000_sample.keys()) if t14000_sample else [],
                 'sample_id': t14000_sample.get('id') if t14000_sample else None,
                 'sample_asin': t14000_sample.get('filter_asin') if t14000_sample else None,
+                'sample_raw': {k: repr(v) for k, v in t14000_sample.items()} if t14000_sample else {},
             },
+            'save_test': save_test,
             'db': {
-                'total': db_total,
+                'total': SoStockedLog.objects.count(),
                 'type_14000': db_14000,
-            },
-            'types': {
-                str(tid): {'count': cnt, 'label': TYPE_LABELS.get(tid, 'UNMAPPED')}
-                for tid, cnt in counter.most_common()
             },
         }
         return HttpResponse(json.dumps(result, indent=2), content_type='application/json')
