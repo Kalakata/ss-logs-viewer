@@ -53,6 +53,7 @@ def explorer(request):
     date_from = request.GET.get('from', '')
     date_to = request.GET.get('to', '')
     type_filter = request.GET.get('type', '')
+    user_filter = request.GET.get('user', '').strip()
     page_num = request.GET.get('page', '1')
 
     try:
@@ -84,6 +85,9 @@ def explorer(request):
         except ValueError:
             pass
 
+    if user_filter:
+        qs = qs.filter(user_name__icontains=user_filter)
+
     if q:
         qs = qs.filter(
             Q(asin__icontains=q)
@@ -112,6 +116,14 @@ def explorer(request):
             bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
         except Exception as e:
             logger.error("Failed to query Product bundle_qty: %s", e)
+
+    # Get distinct user names for the filter dropdown
+    user_names = list(
+        SoStockedLog.objects.exclude(user_name='')
+        .values_list('user_name', flat=True)
+        .distinct()
+        .order_by('user_name')
+    )
 
     logs = []
     for row in rows:
@@ -146,17 +158,21 @@ def explorer(request):
         filter_params.append(f'to={date_to}')
     if type_filter:
         filter_params.append(f'type={type_filter}')
+    if user_filter:
+        filter_params.append(f'user={user_filter}')
     filter_qs = '&'.join(filter_params)
 
     return render(request, 'logs/explorer.html', {
         'logs': logs,
         'page_obj': page_obj,
         'type_labels': TYPE_LABELS,
+        'user_names': user_names,
         'filter_qs': filter_qs,
         'f_q': q,
         'f_from': date_from,
         'f_to': date_to,
         'f_type': type_filter,
+        'f_user': user_filter,
     })
 
 
@@ -165,6 +181,7 @@ def movements(request):
     q = request.GET.get('q', '').strip()
     date_from = request.GET.get('from', '')
     date_to = request.GET.get('to', '')
+    user_filter = request.GET.get('user', '').strip()
     page_num = request.GET.get('page', '1')
 
     try:
@@ -187,6 +204,9 @@ def movements(request):
         if len(to_val) <= 10:
             to_val += ' 23:59:59'
         qs = qs.filter(created_at__lte=to_val)
+
+    if user_filter:
+        qs = qs.filter(user_name__icontains=user_filter)
 
     if q:
         qs = qs.filter(
@@ -277,6 +297,14 @@ def movements(request):
     movement_count = len(group_meta)
     mismatch_count = sum(1 for m in group_meta.values() if not m['balanced'])
 
+    # Get distinct user names for the filter dropdown
+    user_names = list(
+        SoStockedLog.objects.filter(type_id=14000).exclude(user_name='')
+        .values_list('user_name', flat=True)
+        .distinct()
+        .order_by('user_name')
+    )
+
     filter_params = []
     if q:
         filter_params.append(f'q={q}')
@@ -284,6 +312,8 @@ def movements(request):
         filter_params.append(f'from={date_from}')
     if date_to:
         filter_params.append(f'to={date_to}')
+    if user_filter:
+        filter_params.append(f'user={user_filter}')
     filter_qs = '&'.join(filter_params)
 
     return render(request, 'logs/movements.html', {
@@ -291,10 +321,12 @@ def movements(request):
         'page_obj': page_obj,
         'movement_count': movement_count,
         'mismatch_count': mismatch_count,
+        'user_names': user_names,
         'filter_qs': filter_qs,
         'f_q': q,
         'f_from': date_from,
         'f_to': date_to,
+        'f_user': user_filter,
     })
 
 

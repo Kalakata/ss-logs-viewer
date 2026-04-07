@@ -5,7 +5,8 @@
 
 {% block extra_css %}
 <style>
-  .filter-bar { position: sticky; top: var(--header-h); z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+  .page-layout { display: flex; flex-direction: column; height: calc(100vh - var(--header-h)); }
+  .filter-bar { flex-shrink: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
   .filter-bar label { color: #888; font-size: 11px; white-space: nowrap; }
   .filter-bar input[type="text"],
   .filter-bar input[type="datetime-local"] { height: 26px; font-size: 11px; padding: 0 6px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
@@ -17,9 +18,10 @@
   .filter-bar .meta { color: #888; font-size: 11px; }
   .filter-bar .meta-warn { color: #ef4444; font-size: 11px; font-weight: 600; }
 
+  .table-wrap { flex: 1; overflow-y: auto; }
   .logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  .logs-table thead { position: sticky; top: 72px; z-index: 40; }
-  .logs-table th { background: #f0f1f3; padding: 3px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
+  .logs-table thead { position: sticky; top: 0; z-index: 40; }
+  .logs-table th { background: #f0f1f3; padding: 5px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
 
@@ -47,6 +49,7 @@
 {% endblock %}
 
 {% block content %}
+<div class="page-layout">
 <form class="filter-bar" method="get" action="/movements/" id="filter-form">
   <label>Search</label>
   <input type="text" name="q" value="{{ f_q }}" placeholder="ASIN, product, user...">
@@ -58,10 +61,19 @@
   <input type="datetime-local" name="to" value="{{ f_to }}" id="filter-to">
 
   <span class="sep"></span>
+  <label>User</label>
+  <select name="user">
+    <option value="">All users</option>
+    {% for uname in user_names %}
+      <option value="{{ uname }}" {% if f_user == uname %}selected{% endif %}>{{ uname }}</option>
+    {% endfor %}
+  </select>
+
+  <span class="sep"></span>
   <button type="submit" class="btn-filter">Apply</button>
   <a href="/movements/?{{ filter_qs }}{% if filter_qs %}&{% endif %}export=csv" class="btn-filter">CSV</a>
 
-  {% if f_q %}
+  {% if f_q or f_user %}
     <a href="/movements/" class="btn-filter">Reset</a>
   {% endif %}
 
@@ -76,6 +88,7 @@
 </form>
 
 {% if logs %}
+<div class="table-wrap">
 <table class="logs-table">
   <thead>
     <tr>
@@ -118,10 +131,12 @@
   {% endif %}
 </div>
 {% endif %}
+</div><!-- .table-wrap -->
 
 {% else %}
   <div class="empty-state">No manual inventory changes found matching your filters.</div>
 {% endif %}
+</div><!-- .page-layout -->
 {% endblock %}
 
 {% block extra_js %}
