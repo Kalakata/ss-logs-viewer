@@ -29,6 +29,8 @@
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
   .logs-table tbody tr.row-selected > td { background: #dbeafe !important; }
   .logs-table tbody tr.row-selected:hover > td { background: #bfdbfe !important; }
+  .logs-table tbody tr.row-disbalanced > td { background: #fee2e2 !important; }
+  .logs-table tbody tr.row-disbalanced:hover > td { background: #fecaca !important; }
   .logs-table tbody { user-select: none; -webkit-user-select: none; }
 
   .bottom-bar { flex-shrink: 0; }
@@ -124,7 +126,7 @@
   </thead>
   <tbody>
     {% for log in logs %}
-    <tr data-units="{{ log.param_diff }}">
+    <tr data-units="{{ log.param_diff }}" data-asin="{{ log.filter_asin }}">
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
       <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
@@ -200,7 +202,27 @@ document.querySelectorAll('.ss-date').forEach(function(el) {
     var selected = tbody.querySelectorAll('tr.row-selected');
     var count = selected.length;
     var net = 0;
-    selected.forEach(function(tr) { net += parseInt(tr.dataset.units || '0', 10); });
+    // Calculate per-ASIN balance
+    var asinNet = {};
+    selected.forEach(function(tr) {
+      var units = parseInt(tr.dataset.units || '0', 10);
+      var asin = tr.dataset.asin || '';
+      net += units;
+      asinNet[asin] = (asinNet[asin] || 0) + units;
+    });
+    // Find ASINs with non-zero balance
+    var disbalancedAsins = {};
+    for (var asin in asinNet) {
+      if (asinNet[asin] !== 0) disbalancedAsins[asin] = true;
+    }
+    // Mark/unmark disbalanced rows
+    selected.forEach(function(tr) {
+      tr.classList.toggle('row-disbalanced', !!disbalancedAsins[tr.dataset.asin]);
+    });
+    // Clear disbalanced from deselected rows
+    tbody.querySelectorAll('tr:not(.row-selected).row-disbalanced').forEach(function(tr) {
+      tr.classList.remove('row-disbalanced');
+    });
     countEl.textContent = count;
     netEl.textContent = (net > 0 ? '+' : '') + net;
     netEl.className = net > 0 ? 'sel-pos' : net < 0 ? 'sel-neg' : 'sel-zero';
@@ -236,8 +258,8 @@ document.querySelectorAll('.ss-date').forEach(function(el) {
   document.addEventListener('mouseup', function() { dragging = false; });
 
   resetBtn.addEventListener('click', function() {
-    tbody.querySelectorAll('tr.row-selected').forEach(function(tr) {
-      tr.classList.remove('row-selected');
+    tbody.querySelectorAll('tr.row-selected, tr.row-disbalanced').forEach(function(tr) {
+      tr.classList.remove('row-selected', 'row-disbalanced');
     });
     updateBar();
   });
