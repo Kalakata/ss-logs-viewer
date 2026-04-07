@@ -11,12 +11,18 @@ def _save_logs(api_logs):
     if not api_logs:
         return 0
 
-    # Get existing ss_ids to skip
+    # Get existing ss_ids to skip — batch to avoid SQLite variable limits
     incoming_ids = [l['id'] for l in api_logs if l.get('id')]
-    existing_ids = set(
-        SoStockedLog.objects.filter(ss_id__in=incoming_ids)
-        .values_list('ss_id', flat=True)
-    )
+    logger.info("_save_logs: %d api_logs, %d with valid id", len(api_logs), len(incoming_ids))
+    existing_ids = set()
+    batch_size = 900
+    for i in range(0, len(incoming_ids), batch_size):
+        batch = incoming_ids[i:i + batch_size]
+        existing_ids.update(
+            SoStockedLog.objects.filter(ss_id__in=batch)
+            .values_list('ss_id', flat=True)
+        )
+    logger.info("_save_logs: %d existing ids found", len(existing_ids))
 
     new_entries = []
     for l in api_logs:
@@ -42,7 +48,16 @@ def _save_logs(api_logs):
         ))
 
     if new_entries:
-        SoStockedLog.objects.bulk_create(new_entries, ignore_conflicts=True)
+        # Log type distribution of new entries
+        from collections import Counter
+        type_dist = Counter(e.type_id for e in new_entries)
+        logger.info("_save_logs: %d new entries to save. Types: %s",
+                     len(new_entries),
+                     {TYPE_LABELS.get(t, str(t)): c for t, c in type_dist.most_common(10)})
+        SoStockedLog.objects.bulk_create(new_entries, batch_size=500, ignore_conflicts=True)
+        # Verify save
+        saved_count = SoStockedLog.objects.count()
+        logger.info("_save_logs: bulk_create done. DB total now: %d", saved_count)
 
     return len(new_entries)
 
