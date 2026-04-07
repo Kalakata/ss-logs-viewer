@@ -160,6 +160,144 @@ def explorer(request):
     })
 
 
+def movements(request):
+    """Dedicated view for manual inventory changes (type 14000) with movement grouping."""
+    q = request.GET.get('q', '').strip()
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+    page_num = request.GET.get('page', '1')
+
+    try:
+        page_num = int(page_num)
+    except ValueError:
+        page_num = 1
+
+    PACIFIC = timezone(timedelta(hours=-7))
+    if not date_from and not date_to:
+        default_from = datetime.now(PACIFIC) - timedelta(days=7)
+        date_from = default_from.strftime('%Y-%m-%dT00:00')
+        date_to = datetime.now(PACIFIC).strftime('%Y-%m-%dT23:59')
+
+    qs = SoStockedLog.objects.filter(type_id=14000)
+
+    if date_from:
+        qs = qs.filter(created_at__gte=date_from.replace('T', ' '))
+    if date_to:
+        to_val = date_to.replace('T', ' ')
+        if len(to_val) <= 10:
+            to_val += ' 23:59:59'
+        qs = qs.filter(created_at__lte=to_val)
+
+    if q:
+        qs = qs.filter(
+            Q(asin__icontains=q)
+            | Q(product_name__icontains=q)
+            | Q(user_name__icontains=q)
+            | Q(description__icontains=q)
+        )
+
+    qs = qs.order_by('-created_at')
+
+    # --- CSV export ---
+    if request.GET.get('export') == 'csv':
+        return _export_csv(qs)
+
+    # --- Movement detection on FULL filtered queryset (not page-scoped) ---
+    all_rows = list(qs.values_list('ss_id', 'created_at', 'asin', 'param_diff'))
+    by_timestamp = defaultdict(list)
+    for ss_id, created_at, asin, param_diff in all_rows:
+        by_timestamp[created_at].append((ss_id, asin, param_diff))
+
+    movement_ss_ids = {}
+    group_id = 0
+    group_meta = {}
+    for ts, entries in by_timestamp.items():
+        asins = set(e[1] for e in entries)
+        if len(asins) < 2:
+            continue
+        group_id += 1
+        for ss_id, asin, param_diff in entries:
+            movement_ss_ids[ss_id] = group_id
+        group_meta[group_id] = {'timestamp': ts, 'entries': entries}
+
+    # --- Paginate ---
+    paginator = Paginator(qs, PAGE_SIZE)
+    page_obj = paginator.get_page(page_num)
+
+    # --- Build log dicts ---
+    rows = list(page_obj.object_list)
+    unique_asins = list({r.asin for r in rows})
+    all_movement_asins = set()
+    for gid, meta in group_meta.items():
+        for ss_id, asin, param_diff in meta['entries']:
+            all_movement_asins.add(asin)
+    all_asins_needed = list(set(unique_asins) | all_movement_asins)
+
+    bundle_map = {}
+    if all_asins_needed:
+        try:
+            products = Product.objects.filter(asin__in=all_asins_needed).values('asin', 'bundle_qty')
+            bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
+        except Exception as e:
+            logger.error("Failed to query Product bundle_qty: %s", e)
+
+    # Calculate balance for each movement group
+    for gid, meta in group_meta.items():
+        total_units = 0
+        for ss_id, asin, param_diff in meta['entries']:
+            bq = bundle_map.get(asin, 1)
+            total_units += (param_diff or 0) * bq
+        meta['balanced'] = (total_units == 0)
+        meta['net_units'] = total_units
+
+    logs = []
+    for row in rows:
+        bq = bundle_map.get(row.asin, 1)
+        gid = movement_ss_ids.get(row.ss_id)
+        meta = group_meta.get(gid, {})
+        logs.append({
+            'filter_asin': row.asin,
+            'id': row.ss_id,
+            'created_at': row.created_at,
+            'param_diff': row.param_diff,
+            'old_qty': row.old_qty,
+            'new_qty': row.new_qty,
+            'user_name': row.user_name,
+            'description': row.description,
+            'vendor_name': row.vendor_name,
+            'product_name': row.product_name,
+            'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
+            'bundle_qty': bq,
+            'units': (row.param_diff or 0) * bq,
+            'movement_group': gid,
+            'movement_balanced': meta.get('balanced'),
+            'movement_net_units': meta.get('net_units', 0),
+        })
+
+    movement_count = len(group_meta)
+    mismatch_count = sum(1 for m in group_meta.values() if not m['balanced'])
+
+    filter_params = []
+    if q:
+        filter_params.append(f'q={q}')
+    if date_from:
+        filter_params.append(f'from={date_from}')
+    if date_to:
+        filter_params.append(f'to={date_to}')
+    filter_qs = '&'.join(filter_params)
+
+    return render(request, 'logs/movements.html', {
+        'logs': logs,
+        'page_obj': page_obj,
+        'movement_count': movement_count,
+        'mismatch_count': mismatch_count,
+        'filter_qs': filter_qs,
+        'f_q': q,
+        'f_from': date_from,
+        'f_to': date_to,
+    })
+
+
 @csrf_exempt
 @require_GET
 def trigger_report(request):

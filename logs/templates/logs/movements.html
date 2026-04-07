@@ -1,0 +1,160 @@
+{% extends "logs/base.html" %}
+
+{% block title %}Movements — SS Logs{% endblock %}
+{% block nav_movements_active %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+  .filter-bar { position: sticky; top: var(--header-h); z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+  .filter-bar label { color: #888; font-size: 11px; white-space: nowrap; }
+  .filter-bar input[type="text"],
+  .filter-bar input[type="datetime-local"] { height: 26px; font-size: 11px; padding: 0 6px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
+  .filter-bar input[type="text"] { width: 200px; }
+  .filter-bar input[type="datetime-local"] { width: 170px; }
+  .filter-bar .btn-filter { height: 26px; font-size: 11px; padding: 0 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; color: #555; text-decoration: none; }
+  .filter-bar .btn-filter:hover { background: #f0f0f0; }
+  .filter-bar .sep { width: 1px; height: 16px; background: #ddd; }
+  .filter-bar .meta { color: #888; font-size: 11px; }
+  .filter-bar .meta-warn { color: #ef4444; font-size: 11px; font-weight: 600; }
+
+  .logs-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .logs-table thead { position: sticky; top: 72px; z-index: 40; }
+  .logs-table th { background: #f0f1f3; padding: 3px 6px; text-align: left; font-weight: 600; font-size: 11px; color: #555; border-bottom: 2px solid #ddd; white-space: nowrap; }
+  .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
+  .logs-table tbody tr:hover > td { background: #f8f9fb; }
+
+  .diff-pos { color: #16a34a; font-weight: 600; }
+  .diff-neg { color: #b45309; font-weight: 600; }
+  .diff-zero { color: #999; }
+  .raw-diff { color: #bbb; font-size: 10px; margin-left: 2px; font-weight: 400; }
+
+  .movement-balanced > td { background: #f0fdf4; border-left: 4px solid #16a34a; }
+  .movement-mismatch > td { background: #fef2f2; border-left: 4px solid #ef4444; }
+  .net-units { font-size: 10px; color: #ef4444; font-weight: 600; margin-left: 4px; }
+
+  .asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e0f2fe; color: #0369a1; font-size: 11px; }
+  .qty-change { color: #888; font-size: 11px; }
+  .wh-name { font-size: 11px; color: #7c3aed; }
+  .desc { color: #666; word-break: break-word; max-width: 300px; }
+
+  .pagination-bar { padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 12px; color: #555; border-top: 1px solid #ddd; background: #fff; }
+  .pagination-bar a { color: #1e40af; text-decoration: none; padding: 2px 8px; border: 1px solid #ccc; border-radius: 3px; }
+  .pagination-bar a:hover { background: #eef2ff; }
+  .pagination-bar .current { font-weight: 600; }
+
+  .empty-state { padding: 40px; text-align: center; color: #999; font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<form class="filter-bar" method="get" action="/movements/" id="filter-form">
+  <label>Search</label>
+  <input type="text" name="q" value="{{ f_q }}" placeholder="ASIN, product, user...">
+
+  <span class="sep"></span>
+  <label>From</label>
+  <input type="datetime-local" name="from" value="{{ f_from }}" id="filter-from">
+  <label>To</label>
+  <input type="datetime-local" name="to" value="{{ f_to }}" id="filter-to">
+
+  <span class="sep"></span>
+  <button type="submit" class="btn-filter">Apply</button>
+  <a href="/movements/?{{ filter_qs }}{% if filter_qs %}&{% endif %}export=csv" class="btn-filter">CSV</a>
+
+  {% if f_q %}
+    <a href="/movements/" class="btn-filter">Reset</a>
+  {% endif %}
+
+  <span class="sep"></span>
+  <span class="meta">{{ page_obj.paginator.count }} rows</span>
+  {% if movement_count %}
+    <span class="meta">{{ movement_count }} groups</span>
+  {% endif %}
+  {% if mismatch_count %}
+    <span class="meta-warn">{{ mismatch_count }} mismatches</span>
+  {% endif %}
+</form>
+
+{% if logs %}
+<table class="logs-table">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>ASIN</th>
+      <th style="text-align:right;">Units</th>
+      <th>Qty</th>
+      <th>Product</th>
+      <th>Warehouse</th>
+      <th>User</th>
+      <th>Description</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in logs %}
+    <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-balanced{% else %}movement-mismatch{% endif %}{% endif %}">
+      <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
+      <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
+      <td style="text-align:right;" class="{% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }})</span>{% endif %}{% if log.movement_group and not log.movement_balanced %}<span class="net-units">net:{{ log.movement_net_units }}</span>{% endif %}</td>
+      <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
+      <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:40 }}</td>
+      <td><span class="wh-name">{{ log.vendor_name }}</span></td>
+      <td style="white-space:nowrap;">{{ log.user_name }}</td>
+      <td class="desc" title="{{ log.description }}">{{ log.description|truncatechars:40 }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if page_obj.paginator.num_pages > 1 %}
+<div class="pagination-bar">
+  {% if page_obj.has_previous %}
+    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page=1">&laquo; First</a>
+    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.previous_page_number }}">&lsaquo; Prev</a>
+  {% endif %}
+  <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+  <span>({{ page_obj.paginator.count }} total)</span>
+  {% if page_obj.has_next %}
+    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.next_page_number }}">Next &rsaquo;</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+  <div class="empty-state">No manual inventory changes found matching your filters.</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Convert Pacific timestamps to browser local timezone
+document.querySelectorAll('.ss-date').forEach(function(el) {
+  var raw = el.dataset.raw;
+  if (!raw) return;
+  var d = new Date(raw.replace(' ', 'T') + '-07:00');
+  if (isNaN(d)) return;
+  var pad = function(n) { return n < 10 ? '0' + n : n; };
+  el.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+});
+
+// Convert filter dates from browser-local to Pacific on submit
+document.getElementById('filter-form').addEventListener('submit', function(e) {
+  var fromEl = document.getElementById('filter-from');
+  var toEl = document.getElementById('filter-to');
+  var pacificOffset = 420;
+  function localToPacific(input) {
+    if (!input.value) return;
+    var localDate = new Date(input.value);
+    if (isNaN(localDate)) return;
+    var localOffset = localDate.getTimezoneOffset();
+    var shiftMinutes = pacificOffset - (-localOffset);
+    var pacificDate = new Date(localDate.getTime() + shiftMinutes * 60000);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    input.value = pacificDate.getFullYear() + '-' + pad(pacificDate.getMonth()+1) + '-' + pad(pacificDate.getDate())
+      + 'T' + pad(pacificDate.getHours()) + ':' + pad(pacificDate.getMinutes());
+  }
+  localToPacific(fromEl);
+  localToPacific(toEl);
+});
+</script>
+{% endblock %}
