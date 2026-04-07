@@ -90,6 +90,7 @@
       <th style="width:14px;"></th>
       <th>Date</th>
       <th>ASIN</th>
+      <th style="text-align:center;">Bundle</th>
       <th>Type</th>
       <th style="text-align:right;">Diff</th>
       <th>Qty</th>
@@ -104,7 +105,8 @@
     <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% endif %}">
       <td>{% if log.movement_group %}<span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span>{% endif %}</td>
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
-      <td><span class="asin-tag">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
+      <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
+      <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
       <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.real_diff != log.param_diff %}<span class="real-diff">{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
