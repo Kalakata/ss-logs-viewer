@@ -103,7 +103,7 @@
     {% for log in logs %}
     <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% endif %}">
       <td>{% if log.movement_group %}<span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span>{% endif %}</td>
-      <td style="white-space:nowrap;color:#555;" class="utc-date" data-utc="{{ log.created_at }}">{{ log.created_at }}</td>
+      <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
       <td><span class="asin-tag">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
       <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.real_diff != log.param_diff %}<span class="real-diff">{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
@@ -135,16 +135,3 @@
 {% endif %}
 {% endblock %}
 
-{% block extra_js %}
-<script>
-document.querySelectorAll('.utc-date').forEach(function(el) {
-  var utc = el.dataset.utc;
-  if (!utc) return;
-  var d = new Date(utc.replace(' ', 'T') + 'Z');
-  if (isNaN(d)) return;
-  var pad = function(n) { return n < 10 ? '0' + n : n; };
-  el.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
-    + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
-});
-</script>
-{% endblock %}
