@@ -58,18 +58,15 @@ WSGI_APPLICATION = 'ss_logs_viewer.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': Path(os.environ.get('SQLITE_DIR', BASE_DIR)) / 'db.sqlite3',
     },
     'wms': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'wms_postgres',
-        'USER': 'wms_postgres_user',
+        'NAME': os.environ.get('WMS_DB_NAME', 'wms'),
+        'USER': os.environ.get('WMS_DB_USER', 'wms'),
         'PASSWORD': os.environ.get('WMS_DB_PASSWORD', ''),
-        'HOST': os.environ.get('WMS_DB_HOST', 'dpg-d44bkkbe5dus73b02p5g-a.frankfurt-postgres.render.com'),
+        'HOST': os.environ.get('WMS_DB_HOST', 'wms-postgres'),
         'PORT': '5432',
-        'OPTIONS': {
-            'sslmode': 'require',
-        },
     },
 }
 

@@ -1,0 +1,89 @@
+services:
+  app:
+    build: .
+    container_name: ss-logs-app
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      DEBUG: "False"
+      ALLOWED_HOSTS: srv1563194.hstgr.cloud
+      CSRF_TRUSTED_ORIGINS: https://srv1563194.hstgr.cloud:4443
+      WMS_DB_HOST: wms-postgres
+      WMS_DB_NAME: wms
+      WMS_DB_USER: wms
+      WMS_DB_PASSWORD: ${WMS_DB_PASSWORD:?Set WMS_DB_PASSWORD in .env}
+      SS_CLIENT_ID: ${SS_CLIENT_ID:-}
+      SS_CLIENT_SECRET: ${SS_CLIENT_SECRET:-}
+      SS_ACCOUNT_ID: ${SS_ACCOUNT_ID:-}
+      SS_BEARER_TOKEN: ${SS_BEARER_TOKEN:-}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      REPORT_RECIPIENTS: ${REPORT_RECIPIENTS:-}
+      CRON_SECRET: ${CRON_SECRET:-}
+      SQLITE_DIR: /app/db
+    volumes:
+      - db_data:/app/db
+    networks:
+      - ss-network
+      - wms-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  worker:
+    build: .
+    container_name: ss-logs-worker
+    command: python worker.py
+    environment:
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: "False"
+      WMS_DB_HOST: wms-postgres
+      WMS_DB_NAME: wms
+      WMS_DB_USER: wms
+      WMS_DB_PASSWORD: ${WMS_DB_PASSWORD}
+      SQLITE_DIR: /app/db
+      SS_CLIENT_ID: ${SS_CLIENT_ID:-}
+      SS_CLIENT_SECRET: ${SS_CLIENT_SECRET:-}
+      SS_ACCOUNT_ID: ${SS_ACCOUNT_ID:-}
+      SS_BEARER_TOKEN: ${SS_BEARER_TOKEN:-}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      REPORT_RECIPIENTS: ${REPORT_RECIPIENTS:-}
+    volumes:
+      - db_data:/app/db
+    networks:
+      - ss-network
+      - wms-network
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: ss-logs-nginx
+    ports:
+      - "4443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    networks:
+      - ss-network
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  ss-network:
+    driver: bridge
+  wms-network:
+    external: true
+    name: production_wms-network
+
+volumes:
+  db_data:
+    name: ss-logs-db-data
