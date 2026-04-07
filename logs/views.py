@@ -310,3 +310,27 @@ def trigger_report(request):
         return HttpResponse('OK')
     except Exception as e:
         return HttpResponse(f'Error: {e}', status=500)
+
+
+@require_GET
+def debug_types(request):
+    """Diagnostic: fetch from API and report type_id distribution."""
+    import json
+    from collections import Counter
+    from .sostocked import fetch_all_logs_by_period
+    days = int(request.GET.get('days', 7))
+    try:
+        logs = fetch_all_logs_by_period(days)
+        counter = Counter(l.get('type_id', 0) for l in logs)
+        result = {
+            'total': len(logs),
+            'days': days,
+            'types': {
+                str(tid): {'count': cnt, 'label': TYPE_LABELS.get(tid, f'UNMAPPED')}
+                for tid, cnt in counter.most_common()
+            },
+            'has_14000': 14000 in counter,
+        }
+        return HttpResponse(json.dumps(result, indent=2), content_type='application/json')
+    except Exception as e:
+        return HttpResponse(json.dumps({'error': str(e)}), content_type='application/json', status=500)
