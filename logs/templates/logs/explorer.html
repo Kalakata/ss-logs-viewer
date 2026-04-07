@@ -70,15 +70,9 @@
   </select>
 
   <span class="sep"></span>
-  <label>
-    <input type="checkbox" name="mismatch" value="1" {% if f_mismatch %}checked{% endif %} style="vertical-align:middle;">
-    Mismatches only
-  </label>
-
-  <span class="sep"></span>
   <button type="submit" class="btn-filter">Apply</button>
 
-  {% if f_q or f_type or f_mismatch %}
+  {% if f_q or f_type %}
     <a href="/" class="btn-filter" style="text-decoration:none;">Reset</a>
   {% endif %}
 
