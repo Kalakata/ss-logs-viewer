@@ -43,20 +43,20 @@ def _save_logs(api_logs):
             continue
         new_entries.append(SoStockedLog(
             ss_id=ss_id,
-            asin=l.get('filter_asin', ''),
-            area_name=l.get('area_name', ''),
-            created_at=l.get('created_at', ''),
-            order_number=l.get('order_number', ''),
-            param_diff=l.get('param_diff', 0),
-            real_diff=l.get('real_diff', 0),
+            asin=l.get('filter_asin') or '',
+            area_name=l.get('area_name') or '',
+            created_at=l.get('created_at') or '',
+            order_number=l.get('order_number') or '',
+            param_diff=l.get('param_diff') or 0,
+            real_diff=l.get('real_diff') or 0,
             old_qty=l.get('old_qty'),
             new_qty=l.get('new_qty'),
-            user_name=l.get('user_name', ''),
-            description=l.get('description', ''),
-            vendor_name=l.get('vendor_name', ''),
-            product_name=l.get('product_name', ''),
-            order_shipment_id=str(l.get('order_shipment_id', '')),
-            type_id=l.get('type_id', 0),
+            user_name=l.get('user_name') or '',
+            description=l.get('description') or '',
+            vendor_name=l.get('vendor_name') or '',
+            product_name=l.get('product_name') or '',
+            order_shipment_id=str(l.get('order_shipment_id') or ''),
+            type_id=l.get('type_id') or 0,
         ))
 
     if new_entries:
