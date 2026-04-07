@@ -1,17 +1,21 @@
 import logging
 from collections import defaultdict
-
-logger = logging.getLogger(__name__)
+from datetime import datetime, timedelta, timezone
 
 from django.core.management import call_command
-from django.http import JsonResponse, HttpResponse
-from django.shortcuts import render, get_object_or_404
-from django.db.models import Count, Q
+from django.core.paginator import Paginator
+from django.db.models import F, Q
+from django.http import HttpResponse
+from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
-from .models import ProductGroup, Product, Barcode, SoStockedLog
+from .models import Product, SoStockedLog
 from .sostocked import TYPE_LABELS
+
+logger = logging.getLogger(__name__)
+
+PAGE_SIZE = 100
 
 
 def _apply_movement_detection(logs):
@@ -38,224 +42,135 @@ def _apply_movement_balance(logs, bundle_map):
     for log in logs:
         if log.get('movement_group'):
             movement_groups[log['movement_group']].append(log)
-    for group_logs in movement_groups.values():
-        total_units = sum(l['units'] for l in group_logs)
-        for l in group_logs:
+    for grp in movement_groups.values():
+        total_units = sum(l['units'] for l in grp)
+        for l in grp:
             l['movement_balanced'] = (total_units == 0)
             l['movement_net_units'] = total_units
 
 
-def index(request):
-    return render(request, 'logs/index.html')
-
-
-PAGE_SIZE = 30
-
-
-def search_groups(request):
+def explorer(request):
+    # --- Parse filters from query params ---
     q = request.GET.get('q', '').strip()
-    page = int(request.GET.get('page', 1))
-    if len(q) < 2:
-        return JsonResponse({'results': [], 'has_next': False, 'page': 1})
+    date_from = request.GET.get('from', '')
+    date_to = request.GET.get('to', '')
+    type_filter = request.GET.get('type', '')
+    mismatch = request.GET.get('mismatch', '')
+    page_num = request.GET.get('page', '1')
 
-    offset = (page - 1) * PAGE_SIZE
+    try:
+        page_num = int(page_num)
+    except ValueError:
+        page_num = 1
 
-    # Find group IDs matching by barcode
-    barcode_group_ids = list(
-        Barcode.objects
-        .filter(code__icontains=q)
-        .values_list('product__product_group_id', flat=True)
-        .distinct()[:30]
-    )
+    # Default date range: last 7 days
+    if not date_from and not date_to:
+        default_from = datetime.now(timezone.utc) - timedelta(days=7)
+        date_from = default_from.strftime('%Y-%m-%d')
+        date_to = datetime.now(timezone.utc).strftime('%Y-%m-%d')
 
-    qs = (
-        ProductGroup.objects
-        .filter(Q(name__icontains=q) | Q(id__in=barcode_group_ids))
-        .annotate(product_count=Count('products'))
-        .order_by('-product_count', 'name')
-    )
-    total = qs.count()
-    groups = qs[offset:offset + PAGE_SIZE]
-    results = [
-        {
-            'id': g.id,
-            'name': g.name,
-            'product_count': g.product_count,
-        }
-        for g in groups
-    ]
-    return JsonResponse({
-        'results': results,
-        'page': page,
-        'has_next': offset + PAGE_SIZE < total,
-        'total': total,
-    })
+    # --- Build queryset ---
+    qs = SoStockedLog.objects.all()
 
+    if date_from:
+        qs = qs.filter(created_at__gte=date_from)
+    if date_to:
+        # Include the full "to" day
+        qs = qs.filter(created_at__lte=date_to + ' 23:59:59')
 
-def group_logs(request, group_id):
-    group = get_object_or_404(ProductGroup, pk=group_id)
-    products = Product.objects.filter(product_group=group).order_by('asin')
-    asin_list = [p.asin for p in products if p.asin]
-    bundle_map = {p.asin: p.bundle_qty or 1 for p in products if p.asin}
+    if type_filter:
+        try:
+            qs = qs.filter(type_id=int(type_filter))
+        except ValueError:
+            pass
+
+    if q:
+        qs = qs.filter(
+            Q(asin__icontains=q)
+            | Q(product_name__icontains=q)
+            | Q(user_name__icontains=q)
+            | Q(description__icontains=q)
+        )
+
+    if mismatch:
+        qs = qs.exclude(real_diff=F('param_diff'))
+
+    qs = qs.order_by('-created_at')
+
+    # --- Paginate ---
+    paginator = Paginator(qs, PAGE_SIZE)
+    page_obj = paginator.get_page(page_num)
+
+    # --- Build log dicts for template ---
+    rows = list(page_obj.object_list)
+    unique_asins = list({r.asin for r in rows})
+    bundle_map = {}
+    if unique_asins:
+        try:
+            products = Product.objects.filter(asin__in=unique_asins).values('asin', 'bundle_qty')
+            bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
+        except Exception as e:
+            logger.error("Failed to query Product bundle_qty: %s", e)
 
     logs = []
-    error = None
-    if asin_list:
-        try:
-            qs = SoStockedLog.objects.filter(asin__in=asin_list).order_by('-created_at')
-            for row in qs:
-                log = {
-                    'filter_asin': row.asin,
-                    'id': row.ss_id,
-                    'created_at': row.created_at,
-                    'order_number': row.order_number,
-                    'param_diff': row.param_diff,
-                    'real_diff': row.real_diff,
-                    'old_qty': row.old_qty,
-                    'new_qty': row.new_qty,
-                    'user_name': row.user_name,
-                    'description': row.description,
-                    'vendor_name': row.vendor_name,
-                    'product_name': row.product_name,
-                    'order_shipment_id': row.order_shipment_id,
-                    'type_id': row.type_id,
-                    'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
-                    'movement_group': None,
-                }
-                bq = bundle_map.get(row.asin, 1)
-                log['bundle_qty'] = bq
-                log['units'] = (row.param_diff or 0) * bq
-                logs.append(log)
-
-            _apply_movement_detection(logs)
-            _apply_movement_balance(logs, bundle_map)
-
-            logs.sort(key=lambda x: (x.get('created_at', ''), x.get('units', 0)), reverse=True)
-        except Exception as e:
-            error = str(e)
-
-    movement_count = len(set(
-        l['movement_group'] for l in logs if l.get('movement_group')
-    ))
-
-    event_types = sorted(
-        {(l['type_id'], l['type_label']) for l in logs},
-        key=lambda x: x[1],
-    )
-
-    log_data = [
-        {
-            'a': l['filter_asin'],
-            't': l['created_at'],
-            'd': l['param_diff'],
-            'oq': l['old_qty'],
-            'nq': l['new_qty'],
-            'ti': l['type_id'],
-            'mg': l.get('movement_group'),
-            'mb': l.get('movement_balanced'),
-        }
-        for l in logs
-    ]
-
-    return render(request, 'logs/group_logs.html', {
-        'group': group,
-        'products': products,
-        'asin_list': asin_list,
-        'logs': logs,
-        'error': error,
-        'movement_count': movement_count,
-        'event_types': event_types,
-        'log_data': log_data,
-        'bundle_map': bundle_map,
-    })
-
-
-PERIOD_CHOICES = [1, 3, 7, 14, 30, 60, 90]
-
-
-def movements(request):
-    days_param = request.GET.get('days')
-    if days_param is None:
-        return render(request, 'logs/movements.html', {
-            'logs': [],
-            'error': None,
-            'days': None,
-            'period_choices': PERIOD_CHOICES,
-            'movement_count': 0,
+    for row in rows:
+        bq = bundle_map.get(row.asin, 1)
+        logs.append({
+            'filter_asin': row.asin,
+            'id': row.ss_id,
+            'created_at': row.created_at,
+            'order_number': row.order_number,
+            'param_diff': row.param_diff,
+            'real_diff': row.real_diff,
+            'old_qty': row.old_qty,
+            'new_qty': row.new_qty,
+            'user_name': row.user_name,
+            'description': row.description,
+            'vendor_name': row.vendor_name,
+            'product_name': row.product_name,
+            'order_shipment_id': row.order_shipment_id,
+            'type_id': row.type_id,
+            'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
+            'bundle_qty': bq,
+            'units': (row.param_diff or 0) * bq,
+            'movement_group': None,
+            'movement_balanced': None,
+            'movement_net_units': 0,
         })
 
-    try:
-        days = int(days_param)
-    except ValueError:
-        days = 60
-    if days not in PERIOD_CHOICES:
-        days = 60
-
-    logs = []
-    error = None
-    try:
-        from datetime import datetime, timedelta, timezone
-        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
-        cutoff_str = cutoff.strftime('%Y-%m-%d %H:%M:%S')
-
-        qs = SoStockedLog.objects.filter(
-            type_id=14000,
-            created_at__gte=cutoff_str,
-        ).order_by('-created_at')
-
-        unique_asins = list(qs.values_list('asin', flat=True).distinct())
-        bundle_map = {}
-        if unique_asins:
-            try:
-                products = Product.objects.filter(asin__in=unique_asins).values('asin', 'bundle_qty')
-                bundle_map = {p['asin']: p['bundle_qty'] or 1 for p in products}
-            except Exception as e:
-                logger.error("Failed to query Product bundle_qty: %s", e)
-
-        for row in qs:
-            bq = bundle_map.get(row.asin, 1)
-            log = {
-                'filter_asin': row.asin,
-                'area_name': row.area_name,
-                'id': row.ss_id,
-                'created_at': row.created_at,
-                'order_number': row.order_number,
-                'param_diff': row.param_diff,
-                'real_diff': row.real_diff,
-                'old_qty': row.old_qty,
-                'new_qty': row.new_qty,
-                'user_name': row.user_name,
-                'description': row.description,
-                'vendor_name': row.vendor_name,
-                'product_name': row.product_name,
-                'order_shipment_id': row.order_shipment_id,
-                'type_id': row.type_id,
-                'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
-                'bundle_qty': bq,
-                'units': (row.param_diff or 0) * bq,
-                'movement_group': None,
-                'movement_balanced': None,
-                'movement_net_units': 0,
-            }
-            logs.append(log)
-
-        _apply_movement_detection(logs)
-        _apply_movement_balance(logs, bundle_map)
-
-        logs.sort(key=lambda x: (x.get('created_at', ''), x.get('units', 0)), reverse=True)
-    except Exception as e:
-        error = str(e)
+    _apply_movement_detection(logs)
+    _apply_movement_balance(logs, bundle_map)
 
     movement_count = len(set(
         l['movement_group'] for l in logs if l.get('movement_group')
     ))
 
-    return render(request, 'logs/movements.html', {
+    # Build query string without page param for pagination links
+    filter_params = []
+    if q:
+        filter_params.append(f'q={q}')
+    if date_from:
+        filter_params.append(f'from={date_from}')
+    if date_to:
+        filter_params.append(f'to={date_to}')
+    if type_filter:
+        filter_params.append(f'type={type_filter}')
+    if mismatch:
+        filter_params.append(f'mismatch={mismatch}')
+    filter_qs = '&'.join(filter_params)
+
+    return render(request, 'logs/explorer.html', {
         'logs': logs,
-        'error': error,
-        'days': days,
-        'period_choices': PERIOD_CHOICES,
+        'page_obj': page_obj,
         'movement_count': movement_count,
+        'type_labels': TYPE_LABELS,
+        'filter_qs': filter_qs,
+        # Current filter values for form state
+        'f_q': q,
+        'f_from': date_from,
+        'f_to': date_to,
+        'f_type': type_filter,
+        'f_mismatch': mismatch,
     })
 
 
