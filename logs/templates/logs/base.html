@@ -11,6 +11,10 @@
     .app-header { height: var(--header-h); background: #1e1e2e; display: flex; align-items: center; padding: 0 12px; gap: 12px; position: fixed; top: 0; left: 0; right: 0; z-index: 100; }
     .app-header .brand { color: #a0a0b0; font-size: 12px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; text-decoration: none; }
     .app-header .brand:hover { color: #fff; }
+    .app-nav { display: flex; gap: 4px; margin-left: 8px; }
+    .nav-link { color: #707080; font-size: 11px; text-decoration: none; padding: 2px 8px; border-radius: 3px; }
+    .nav-link:hover { color: #fff; background: rgba(255,255,255,0.1); }
+    .nav-link.active { color: #fff; background: rgba(255,255,255,0.15); }
     {% block header_right_css %}{% endblock %}
     .app-body { padding-top: var(--header-h); }
     {% block extra_css %}{% endblock %}
@@ -19,6 +23,10 @@
 <body>
   <header class="app-header">
     <a class="brand" href="/">SS Logs</a>
+    <nav class="app-nav">
+      <a href="/" class="nav-link {% block nav_logs_active %}{% endblock %}">Logs</a>
+      <a href="/movements" class="nav-link {% block nav_movements_active %}{% endblock %}">Movements</a>
+    </nav>
     {% block header_right %}{% endblock %}
   </header>
 
