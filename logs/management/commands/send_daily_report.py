@@ -13,18 +13,19 @@ from logs.sostocked import TYPE_LABELS
 
 logger = logging.getLogger(__name__)
 
+PACIFIC = timezone(timedelta(hours=-7))
 EET = timezone(timedelta(hours=2))
 
 
 def _to_eet(dt_str):
-    """Convert a UTC datetime string to EET (UTC+2)."""
+    """Convert a Pacific (UTC-7) datetime string to EET (UTC+2)."""
     if not dt_str:
         return ''
     try:
         dt = datetime.fromisoformat(dt_str.replace('Z', '+00:00'))
-        # If no timezone info, assume UTC
+        # If no timezone info, assume Pacific (API returns US Pacific times)
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.replace(tzinfo=PACIFIC)
         return dt.astimezone(EET).strftime('%Y-%m-%d %H:%M:%S')
     except (ValueError, TypeError):
         return dt_str
