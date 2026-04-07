@@ -25,6 +25,7 @@
   .logs-table td { padding: 2px 6px; border-bottom: 1px solid #eee; vertical-align: top; line-height: 1.4; }
   .logs-table tbody tr:hover > td { background: #f8f9fb; }
 
+  .units-cell { font-family: 'SF Mono', 'Consolas', 'Monaco', monospace; font-size: 11px; white-space: nowrap; }
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
   .diff-zero { color: #999; }
@@ -108,7 +109,7 @@
     <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-balanced{% else %}movement-mismatch{% endif %}{% endif %}">
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
       <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
-      <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.units > 0 %}+{% endif %}{{ log.units }})</span>{% endif %}{% if log.movement_group and not log.movement_balanced %}<span class="net-units">net:{{ log.movement_net_units }}</span>{% endif %}</td>
+      <td style="text-align:right;" class="units-cell {% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.units > 0 %}+{% endif %}{{ log.units }})</span>{% endif %}{% if log.movement_group and not log.movement_balanced %}<span class="net-units">net:{{ log.movement_net_units }}</span>{% endif %}</td>
       <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
       <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:80 }}</td>
