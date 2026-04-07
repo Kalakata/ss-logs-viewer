@@ -20,37 +20,6 @@ logger = logging.getLogger(__name__)
 PAGE_SIZE = 100
 
 
-def _apply_movement_detection(logs):
-    """Detect cross-ASIN movements: manual inventory changes (type 14000)
-    at the exact same timestamp across 2+ ASINs."""
-    by_timestamp = defaultdict(list)
-    for log in logs:
-        if log['type_id'] == 14000:
-            by_timestamp[log['created_at']].append(log)
-
-    group_id = 0
-    for ts, group_logs in by_timestamp.items():
-        asins_involved = set(l['filter_asin'] for l in group_logs)
-        if len(asins_involved) < 2:
-            continue
-        group_id += 1
-        for l in group_logs:
-            l['movement_group'] = group_id
-
-
-def _apply_movement_balance(logs, bundle_map):
-    """Calculate movement balance and units for logs with movement groups."""
-    movement_groups = defaultdict(list)
-    for log in logs:
-        if log.get('movement_group'):
-            movement_groups[log['movement_group']].append(log)
-    for grp in movement_groups.values():
-        total_units = sum(l['units'] for l in grp)
-        for l in grp:
-            l['movement_balanced'] = (total_units == 0)
-            l['movement_net_units'] = total_units
-
-
 def _export_csv(qs):
     """Export queryset as CSV download."""
     buf = io.BytesIO()
@@ -91,21 +60,20 @@ def explorer(request):
     except ValueError:
         page_num = 1
 
-    # Default date range: last 7 days
+    # Default date range: last 7 days (in Pacific, matching stored timestamps)
+    PACIFIC = timezone(timedelta(hours=-7))
     if not date_from and not date_to:
-        default_from = datetime.now(timezone.utc) - timedelta(days=7)
+        default_from = datetime.now(PACIFIC) - timedelta(days=7)
         date_from = default_from.strftime('%Y-%m-%dT00:00')
-        date_to = datetime.now(timezone.utc).strftime('%Y-%m-%dT23:59')
+        date_to = datetime.now(PACIFIC).strftime('%Y-%m-%dT23:59')
 
     # --- Build queryset ---
     qs = SoStockedLog.objects.all()
 
     if date_from:
-        # datetime-local sends "2026-04-07T14:00", normalize for DB comparison
         qs = qs.filter(created_at__gte=date_from.replace('T', ' '))
     if date_to:
         to_val = date_to.replace('T', ' ')
-        # If no time component, include the full day
         if len(to_val) <= 10:
             to_val += ' 23:59:59'
         qs = qs.filter(created_at__lte=to_val)
@@ -166,17 +134,7 @@ def explorer(request):
             'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
             'bundle_qty': bq,
             'units': (row.param_diff or 0) * bq,
-            'movement_group': None,
-            'movement_balanced': None,
-            'movement_net_units': 0,
         })
-
-    _apply_movement_detection(logs)
-    _apply_movement_balance(logs, bundle_map)
-
-    movement_count = len(set(
-        l['movement_group'] for l in logs if l.get('movement_group')
-    ))
 
     # Build query string without page param for pagination links
     filter_params = []
@@ -193,10 +151,8 @@ def explorer(request):
     return render(request, 'logs/explorer.html', {
         'logs': logs,
         'page_obj': page_obj,
-        'movement_count': movement_count,
         'type_labels': TYPE_LABELS,
         'filter_qs': filter_qs,
-        # Current filter values for form state
         'f_q': q,
         'f_from': date_from,
         'f_to': date_to,

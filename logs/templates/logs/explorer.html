@@ -13,9 +13,8 @@
   .filter-bar select { height: 26px; font-size: 11px; padding: 0 6px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
   .filter-bar input[type="text"] { width: 200px; }
   .filter-bar input[type="datetime-local"] { width: 170px; }
-  .filter-bar .btn-filter { height: 26px; font-size: 11px; padding: 0 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; color: #555; }
+  .filter-bar .btn-filter { height: 26px; font-size: 11px; padding: 0 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; color: #555; text-decoration: none; }
   .filter-bar .btn-filter:hover { background: #f0f0f0; }
-  .filter-bar .btn-filter.active { background: #ffc107; border-color: #ffc107; color: #000; }
   .filter-bar .sep { width: 1px; height: 16px; background: #ddd; }
   .filter-bar .meta { color: #888; font-size: 11px; }
 
@@ -28,11 +27,7 @@
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
   .diff-zero { color: #999; }
-  .real-diff { color: #bbb; font-size: 10px; margin-left: 2px; font-weight: 400; }
-
-  .movement-row > td { background: #fefce8 !important; }
-  .movement-mismatch > td { background: #fef2f2 !important; }
-  .movement-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; }
+  .raw-diff { color: #bbb; font-size: 10px; margin-left: 2px; font-weight: 400; }
 
   .asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e0f2fe; color: #0369a1; font-size: 11px; }
   .type-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #f1f5f9; color: #475569; font-size: 11px; }
@@ -50,15 +45,15 @@
 {% endblock %}
 
 {% block content %}
-<form class="filter-bar" method="get" action="/">
+<form class="filter-bar" method="get" action="/" id="filter-form">
   <label>Search</label>
   <input type="text" name="q" value="{{ f_q }}" placeholder="ASIN, product, user...">
 
   <span class="sep"></span>
   <label>From</label>
-  <input type="datetime-local" name="from" value="{{ f_from }}">
+  <input type="datetime-local" name="from" value="{{ f_from }}" id="filter-from">
   <label>To</label>
-  <input type="datetime-local" name="to" value="{{ f_to }}">
+  <input type="datetime-local" name="to" value="{{ f_to }}" id="filter-to">
 
   <span class="sep"></span>
   <label>Type</label>
@@ -71,29 +66,23 @@
 
   <span class="sep"></span>
   <button type="submit" class="btn-filter">Apply</button>
-  <a href="/?{{ filter_qs }}{% if filter_qs %}&{% endif %}export=csv" class="btn-filter" style="text-decoration:none;">CSV</a>
+  <a href="/?{{ filter_qs }}{% if filter_qs %}&{% endif %}export=csv" class="btn-filter">CSV</a>
 
   {% if f_q or f_type %}
-    <a href="/" class="btn-filter" style="text-decoration:none;">Reset</a>
+    <a href="/" class="btn-filter">Reset</a>
   {% endif %}
 
   <span class="sep"></span>
   <span class="meta">{{ page_obj.paginator.count }} rows</span>
-  {% if movement_count %}
-    <span class="meta" style="color:#b45309;">{{ movement_count }} movements</span>
-  {% endif %}
 </form>
 
 {% if logs %}
 <table class="logs-table">
   <thead>
     <tr>
-      <th style="width:14px;"></th>
       <th>Date</th>
       <th>ASIN</th>
-      <th style="text-align:center;">Bundle</th>
       <th>Type</th>
-      <th style="text-align:right;">Diff</th>
       <th style="text-align:right;">Units</th>
       <th>Qty</th>
       <th>Product</th>
@@ -105,20 +94,17 @@
   </thead>
   <tbody>
     {% for log in logs %}
-    <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-row{% else %}movement-mismatch{% endif %}{% endif %}">
-      <td>{% if log.movement_group %}<span class="movement-dot" title="Movement #{{ log.movement_group }}{% if not log.movement_balanced %} — MISMATCH net {{ log.movement_net_units }}u{% endif %}"></span>{% endif %}</td>
+    <tr>
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
       <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
-      <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
-      <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.real_diff != log.param_diff %}<span class="real-diff">{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
-      <td style="text-align:right;" class="{% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}</td>
+      <td style="text-align:right;" class="{% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }})</span>{% endif %}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
-      <td style="font-size:11px;" class="desc">{{ log.product_name|truncatechars:60 }}</td>
+      <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:40 }}</td>
       <td><span class="wh-name">{{ log.vendor_name }}</span></td>
       <td style="font-size:10px;color:#666;white-space:nowrap;">{% if log.order_shipment_id %}#{{ log.order_shipment_id }}{% endif %}</td>
       <td style="white-space:nowrap;">{{ log.user_name }}</td>
-      <td class="desc">{{ log.description }}</td>
+      <td class="desc" title="{{ log.description }}">{{ log.description|truncatechars:40 }}</td>
     </tr>
     {% endfor %}
   </tbody>
@@ -133,7 +119,7 @@
   <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
   <span>({{ page_obj.paginator.count }} total)</span>
   {% if page_obj.has_next %}
-    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.next_page_number }}">Next &raquo;</a>
+    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.next_page_number }}">Next &rsaquo;</a>
   {% endif %}
 </div>
 {% endif %}
@@ -146,7 +132,7 @@
 {% block extra_js %}
 <script>
 // SoStocked API returns times in US Pacific (UTC-7 PDT).
-// Convert to browser local timezone.
+// Convert to browser local timezone for display.
 document.querySelectorAll('.ss-date').forEach(function(el) {
   var raw = el.dataset.raw;
   if (!raw) return;
@@ -156,6 +142,26 @@ document.querySelectorAll('.ss-date').forEach(function(el) {
   el.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
     + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
 });
+
+// Convert filter date inputs from browser-local to Pacific (UTC-7) on submit.
+// The DB stores Pacific times, so filter values must be in Pacific to match correctly.
+document.getElementById('filter-form').addEventListener('submit', function(e) {
+  var fromEl = document.getElementById('filter-from');
+  var toEl = document.getElementById('filter-to');
+  var pacificOffset = 420;
+  function localToPacific(input) {
+    if (!input.value) return;
+    var localDate = new Date(input.value);
+    if (isNaN(localDate)) return;
+    var localOffset = localDate.getTimezoneOffset();
+    var shiftMinutes = pacificOffset - (-localOffset);
+    var pacificDate = new Date(localDate.getTime() + shiftMinutes * 60000);
+    var pad = function(n) { return n < 10 ? '0' + n : n; };
+    input.value = pacificDate.getFullYear() + '-' + pad(pacificDate.getMonth()+1) + '-' + pad(pacificDate.getDate())
+      + 'T' + pad(pacificDate.getHours()) + ':' + pad(pacificDate.getMinutes());
+  }
+  localToPacific(fromEl);
+  localToPacific(toEl);
+});
 </script>
 {% endblock %}
-
