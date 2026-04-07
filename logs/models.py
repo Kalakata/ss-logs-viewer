@@ -56,3 +56,32 @@ class Barcode(models.Model):
 
     def __str__(self):
         return self.code
+
+
+class SoStockedLog(models.Model):
+    """Locally cached SoStocked log entry."""
+    ss_id = models.BigIntegerField(unique=True, db_index=True)
+    asin = models.CharField(max_length=20, db_index=True)
+    area_name = models.CharField(max_length=100, blank=True, default='')
+    created_at = models.CharField(max_length=30, db_index=True)
+    order_number = models.CharField(max_length=100, blank=True, default='')
+    param_diff = models.SmallIntegerField(default=0)
+    real_diff = models.SmallIntegerField(default=0)
+    old_qty = models.IntegerField(null=True)
+    new_qty = models.IntegerField(null=True)
+    user_name = models.CharField(max_length=100, blank=True, default='')
+    description = models.TextField(blank=True, default='')
+    vendor_name = models.CharField(max_length=200, blank=True, default='')
+    product_name = models.CharField(max_length=500, blank=True, default='')
+    order_shipment_id = models.CharField(max_length=50, blank=True, default='')
+    type_id = models.IntegerField(default=0, db_index=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=['-created_at', 'asin']),
+            models.Index(fields=['type_id', '-created_at']),
+        ]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.ss_id} {self.asin} {self.created_at}'
