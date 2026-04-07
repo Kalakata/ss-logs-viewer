@@ -58,6 +58,14 @@ TYPE_LABELS = {
     76100: "Product config",
     77000: "Bundle config",
     80000: "Shipped from warehouse",
+    80100: "WO/Shipment canceled",
+    80200: "Shipment deleted",
+    55000: "Status changed",
+    50300: "Work order canceled",
+    50000: "Date sent changed",
+    50100: "Lead time changed",
+    25100: "Destination changed",
+    20600: "System: visibility hidden",
 }
 
 
