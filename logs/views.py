@@ -10,8 +10,39 @@ from django.db.models import Count, Q
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
-from .models import ProductGroup, Product, Barcode
-from .sostocked import fetch_logs_for_asins, fetch_all_logs_by_period, TYPE_LABELS
+from .models import ProductGroup, Product, Barcode, SoStockedLog
+from .sostocked import TYPE_LABELS
+
+
+def _apply_movement_detection(logs):
+    """Detect cross-ASIN movements: manual inventory changes (type 14000)
+    at the exact same timestamp across 2+ ASINs."""
+    by_timestamp = defaultdict(list)
+    for log in logs:
+        if log['type_id'] == 14000:
+            by_timestamp[log['created_at']].append(log)
+
+    group_id = 0
+    for ts, group_logs in by_timestamp.items():
+        asins_involved = set(l['filter_asin'] for l in group_logs)
+        if len(asins_involved) < 2:
+            continue
+        group_id += 1
+        for l in group_logs:
+            l['movement_group'] = group_id
+
+
+def _apply_movement_balance(logs, bundle_map):
+    """Calculate movement balance and units for logs with movement groups."""
+    movement_groups = defaultdict(list)
+    for log in logs:
+        if log.get('movement_group'):
+            movement_groups[log['movement_group']].append(log)
+    for group_logs in movement_groups.values():
+        total_units = sum(l['units'] for l in group_logs)
+        for l in group_logs:
+            l['movement_balanced'] = (total_units == 0)
+            l['movement_net_units'] = total_units
 
 
 def index(request):
@@ -71,24 +102,34 @@ def group_logs(request, group_id):
     error = None
     if asin_list:
         try:
-            logs = fetch_logs_for_asins(asin_list)
-            for log in logs:
-                bq = bundle_map.get(log['filter_asin'], 1)
+            qs = SoStockedLog.objects.filter(asin__in=asin_list).order_by('-created_at')
+            for row in qs:
+                log = {
+                    'filter_asin': row.asin,
+                    'id': row.ss_id,
+                    'created_at': row.created_at,
+                    'order_number': row.order_number,
+                    'param_diff': row.param_diff,
+                    'real_diff': row.real_diff,
+                    'old_qty': row.old_qty,
+                    'new_qty': row.new_qty,
+                    'user_name': row.user_name,
+                    'description': row.description,
+                    'vendor_name': row.vendor_name,
+                    'product_name': row.product_name,
+                    'order_shipment_id': row.order_shipment_id,
+                    'type_id': row.type_id,
+                    'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
+                    'movement_group': None,
+                }
+                bq = bundle_map.get(row.asin, 1)
                 log['bundle_qty'] = bq
-                log['units'] = (log['param_diff'] or 0) * bq
+                log['units'] = (row.param_diff or 0) * bq
+                logs.append(log)
 
-            # Check if movement groups balance in single units
-            movement_groups = defaultdict(list)
-            for log in logs:
-                if log.get('movement_group'):
-                    movement_groups[log['movement_group']].append(log)
-            for group_logs in movement_groups.values():
-                total_units = sum(l['units'] for l in group_logs)
-                for l in group_logs:
-                    l['movement_balanced'] = (total_units == 0)
-                    l['movement_net_units'] = total_units
+            _apply_movement_detection(logs)
+            _apply_movement_balance(logs, bundle_map)
 
-            # Re-sort: created_at DESC, negative units last within same timestamp
             logs.sort(key=lambda x: (x.get('created_at', ''), x.get('units', 0)), reverse=True)
         except Exception as e:
             error = str(e)
@@ -97,13 +138,11 @@ def group_logs(request, group_id):
         l['movement_group'] for l in logs if l.get('movement_group')
     ))
 
-    # Collect distinct event types present in the data
     event_types = sorted(
         {(l['type_id'], l['type_label']) for l in logs},
         key=lambda x: x[1],
     )
 
-    # Compact log data for JS chart/panels
     log_data = [
         {
             'a': l['filter_asin'],
@@ -137,7 +176,6 @@ PERIOD_CHOICES = [1, 3, 7, 14, 30, 60, 90]
 def movements(request):
     days_param = request.GET.get('days')
     if days_param is None:
-        # No period selected yet — show picker only
         return render(request, 'logs/movements.html', {
             'logs': [],
             'error': None,
@@ -156,13 +194,16 @@ def movements(request):
     logs = []
     error = None
     try:
-        all_logs = fetch_all_logs_by_period(days)
+        from datetime import datetime, timedelta, timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+        cutoff_str = cutoff.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Keep only type_id=14000 (manual inventory change)
-        logs = [l for l in all_logs if l['type_id'] == 14000]
+        qs = SoStockedLog.objects.filter(
+            type_id=14000,
+            created_at__gte=cutoff_str,
+        ).order_by('-created_at')
 
-        # Collect unique ASINs and look up bundle_qty in one query
-        unique_asins = list({l['filter_asin'] for l in logs if l['filter_asin']})
+        unique_asins = list(qs.values_list('asin', flat=True).distinct())
         bundle_map = {}
         if unique_asins:
             try:
@@ -171,26 +212,36 @@ def movements(request):
             except Exception as e:
                 logger.error("Failed to query Product bundle_qty: %s", e)
 
-        # Calculate units and movement balance
-        for log in logs:
-            bq = bundle_map.get(log['filter_asin'], 1)
-            log['bundle_qty'] = bq
-            log['units'] = (log['param_diff'] or 0) * bq
-            # Defaults for standalone (non-movement) entries
-            log.setdefault('movement_balanced', None)
-            log['movement_net_units'] = 0
+        for row in qs:
+            bq = bundle_map.get(row.asin, 1)
+            log = {
+                'filter_asin': row.asin,
+                'area_name': row.area_name,
+                'id': row.ss_id,
+                'created_at': row.created_at,
+                'order_number': row.order_number,
+                'param_diff': row.param_diff,
+                'real_diff': row.real_diff,
+                'old_qty': row.old_qty,
+                'new_qty': row.new_qty,
+                'user_name': row.user_name,
+                'description': row.description,
+                'vendor_name': row.vendor_name,
+                'product_name': row.product_name,
+                'order_shipment_id': row.order_shipment_id,
+                'type_id': row.type_id,
+                'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
+                'bundle_qty': bq,
+                'units': (row.param_diff or 0) * bq,
+                'movement_group': None,
+                'movement_balanced': None,
+                'movement_net_units': 0,
+            }
+            logs.append(log)
 
-        movement_groups = defaultdict(list)
-        for log in logs:
-            if log.get('movement_group'):
-                movement_groups[log['movement_group']].append(log)
-        for group_logs_list in movement_groups.values():
-            total_units = sum(l['units'] for l in group_logs_list)
-            for l in group_logs_list:
-                l['movement_balanced'] = (total_units == 0)
-                l['movement_net_units'] = total_units
+        _apply_movement_detection(logs)
+        _apply_movement_balance(logs, bundle_map)
 
-        # Sort: created_at DESC, negative units last within same timestamp
         logs.sort(key=lambda x: (x.get('created_at', ''), x.get('units', 0)), reverse=True)
     except Exception as e:
         error = str(e)
