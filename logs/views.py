@@ -314,7 +314,7 @@ def trigger_report(request):
 
 @require_GET
 def debug_types(request):
-    """Diagnostic: fetch from API and report type_id distribution."""
+    """Diagnostic: fetch from API and report type_id distribution + save analysis."""
     import json
     from collections import Counter
     from .sostocked import fetch_all_logs_by_period
@@ -322,15 +322,44 @@ def debug_types(request):
     try:
         logs = fetch_all_logs_by_period(days)
         counter = Counter(l.get('type_id', 0) for l in logs)
+
+        # Check how many have valid IDs (needed for DB save)
+        no_id = [l for l in logs if not l.get('id')]
+        no_id_types = Counter(l.get('type_id', 0) for l in no_id)
+
+        # Check type 14000 specifically
+        t14000 = [l for l in logs if l.get('type_id') == 14000]
+        t14000_no_id = [l for l in t14000 if not l.get('id')]
+        t14000_sample = t14000[0] if t14000 else None
+
+        # Check DB state
+        db_total = SoStockedLog.objects.count()
+        db_14000 = SoStockedLog.objects.filter(type_id=14000).count()
+
         result = {
-            'total': len(logs),
+            'api_total': len(logs),
             'days': days,
+            'records_without_id': len(no_id),
+            'records_without_id_by_type': {
+                str(tid): cnt for tid, cnt in no_id_types.most_common(10)
+            },
+            'type_14000': {
+                'api_count': len(t14000),
+                'without_id': len(t14000_no_id),
+                'sample_keys': list(t14000_sample.keys()) if t14000_sample else [],
+                'sample_id': t14000_sample.get('id') if t14000_sample else None,
+                'sample_asin': t14000_sample.get('filter_asin') if t14000_sample else None,
+            },
+            'db': {
+                'total': db_total,
+                'type_14000': db_14000,
+            },
             'types': {
-                str(tid): {'count': cnt, 'label': TYPE_LABELS.get(tid, f'UNMAPPED')}
+                str(tid): {'count': cnt, 'label': TYPE_LABELS.get(tid, 'UNMAPPED')}
                 for tid, cnt in counter.most_common()
             },
-            'has_14000': 14000 in counter,
         }
         return HttpResponse(json.dumps(result, indent=2), content_type='application/json')
     except Exception as e:
-        return HttpResponse(json.dumps({'error': str(e)}), content_type='application/json', status=500)
+        import traceback
+        return HttpResponse(json.dumps({'error': str(e), 'trace': traceback.format_exc()}), content_type='application/json', status=500)
