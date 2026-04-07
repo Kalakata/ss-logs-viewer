@@ -29,7 +29,8 @@
   .logs-table tbody tr.row-selected:hover > td { background: #bfdbfe !important; }
   .logs-table tbody { user-select: none; -webkit-user-select: none; }
 
-  .selection-bar { flex-shrink: 0; display: none; background: #1e40af; color: #fff; padding: 6px 12px; font-size: 12px; align-items: center; gap: 12px; }
+  .bottom-bar { flex-shrink: 0; }
+  .selection-bar { display: none; background: #1e40af; color: #fff; padding: 6px 12px; font-size: 12px; align-items: center; gap: 12px; }
   .selection-bar.visible { display: flex; }
   .selection-bar .sel-stat { font-weight: 600; }
   .selection-bar .sel-pos { color: #86efac; font-weight: 700; }
@@ -138,26 +139,28 @@
   </tbody>
 </table>
 
-{% if page_obj.paginator.num_pages > 1 %}
-<div class="pagination-bar">
-  {% if page_obj.has_previous %}
-    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page=1">&laquo; First</a>
-    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.previous_page_number }}">&lsaquo; Prev</a>
-  {% endif %}
-  <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-  <span>({{ page_obj.paginator.count }} total)</span>
-  {% if page_obj.has_next %}
-    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.next_page_number }}">Next &rsaquo;</a>
-  {% endif %}
-</div>
-{% endif %}
-
 
 </div><!-- .table-wrap -->
-<div class="selection-bar" id="selection-bar">
-  <span class="sel-stat"><span id="sel-count">0</span> selected</span>
-  <span>Net units: <span id="sel-net" class="sel-zero">0</span></span>
-  <button class="sel-reset" id="sel-reset" type="button">Clear selection</button>
+
+<div class="bottom-bar">
+  <div class="selection-bar" id="selection-bar">
+    <span class="sel-stat"><span id="sel-count">0</span> selected</span>
+    <span>Net units: <span id="sel-net" class="sel-zero">0</span></span>
+    <button class="sel-reset" id="sel-reset" type="button">Clear selection</button>
+  </div>
+  {% if page_obj.paginator.num_pages > 1 %}
+  <div class="pagination-bar">
+    {% if page_obj.has_previous %}
+      <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page=1">&laquo; First</a>
+      <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.previous_page_number }}">&lsaquo; Prev</a>
+    {% endif %}
+    <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+    <span>({{ page_obj.paginator.count }} total)</span>
+    {% if page_obj.has_next %}
+      <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.next_page_number }}">Next &rsaquo;</a>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 
 {% else %}
