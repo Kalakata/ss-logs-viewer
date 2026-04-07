@@ -95,6 +95,7 @@
       <th>Date</th>
       <th>ASIN</th>
       <th style="text-align:right;">Units</th>
+      <th style="text-align:center;">Bundle</th>
       <th>Qty</th>
       <th>Product</th>
       <th>Warehouse</th>
@@ -107,9 +108,10 @@
     <tr class="{% if log.movement_group %}{% if log.movement_balanced %}movement-balanced{% else %}movement-mismatch{% endif %}{% endif %}">
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
       <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
-      <td style="text-align:right;" class="{% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }})</span>{% endif %}{% if log.movement_group and not log.movement_balanced %}<span class="net-units">net:{{ log.movement_net_units }}</span>{% endif %}</td>
+      <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.units > 0 %}+{% endif %}{{ log.units }})</span>{% endif %}{% if log.movement_group and not log.movement_balanced %}<span class="net-units">net:{{ log.movement_net_units }}</span>{% endif %}</td>
+      <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
-      <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:40 }}</td>
+      <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:80 }}</td>
       <td><span class="wh-name">{{ log.vendor_name }}</span></td>
       <td style="white-space:nowrap;">{{ log.user_name }}</td>
       <td class="desc" title="{{ log.description }}">{{ log.description|truncatechars:40 }}</td>
