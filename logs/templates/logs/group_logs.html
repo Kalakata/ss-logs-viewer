@@ -41,6 +41,7 @@
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
   .diff-zero { color: #999; }
+  .real-diff { color: #bbb; font-size: 10px; margin-left: 2px; font-weight: 400; }
 
   .arrived-row > td { background: #d1fae5 !important; }
   .movement-row > td { background: #fefce8 !important; }
@@ -140,7 +141,7 @@
         <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
         <td><span class="asin-tag" data-asin="{{ log.filter_asin }}">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
         <td><span class="type-tag">{{ log.type_label }}</span></td>
-        <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}</td>
+        <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.real_diff != log.param_diff %}<span class="real-diff">{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
         <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
         <td><span class="wh-name">{{ log.vendor_name }}</span></td>
         <td>{% if log.order_number %}<span class="order-id">{{ log.order_number|truncatechars:30 }}</span>{% endif %}{% if log.order_shipment_id %}<br><span class="shipment-id">#{{ log.order_shipment_id }}</span>{% endif %}</td>

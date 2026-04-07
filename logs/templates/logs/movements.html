@@ -31,6 +31,7 @@
   .diff-pos { color: #16a34a; font-weight: 600; }
   .diff-neg { color: #b45309; font-weight: 600; }
   .diff-zero { color: #999; }
+  .real-diff { color: #bbb; font-size: 10px; margin-left: 2px; font-weight: 400; }
 
   .movement-row > td { background: #fefce8 !important; }
   .movement-mismatch > td { background: #fef2f2 !important; }
@@ -105,7 +106,7 @@
           data-standalone="{% if not log.movement_group %}1{% endif %}">
         <td style="white-space:nowrap;color:#555;">{{ log.created_at }}</td>
         <td><span class="asin-tag">{{ log.filter_asin }}<span style="color:#0891b2;margin-left:2px;">x{{ log.bundle_qty }}</span></span></td>
-        <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}</td>
+        <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.real_diff != log.param_diff %}<span class="real-diff">{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
         <td style="text-align:right;" class="units-val {% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}</td>
         <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
         <td style="font-size:11px;">{{ log.product_name }}</td>
