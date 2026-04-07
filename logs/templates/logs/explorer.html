@@ -6,7 +6,9 @@
 
 {% block extra_css %}
 <style>
-  .page-layout { display: flex; flex-direction: column; height: calc(100vh - var(--header-h)); }
+  html, body { height: 100%; overflow: hidden; }
+  .app-body { height: calc(100% - var(--header-h)); overflow: hidden; }
+  .page-layout { display: flex; flex-direction: column; height: 100%; }
   .filter-bar { flex-shrink: 0; background: #fff; border-bottom: 1px solid #ddd; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
   .filter-bar label { color: #888; font-size: 11px; white-space: nowrap; }
   .filter-bar input[type="text"],
