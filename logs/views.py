@@ -1,3 +1,5 @@
+import csv
+import io
 import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -49,6 +51,33 @@ def _apply_movement_balance(logs, bundle_map):
             l['movement_net_units'] = total_units
 
 
+def _export_csv(qs):
+    """Export queryset as CSV download."""
+    buf = io.BytesIO()
+    buf.write(b'\xef\xbb\xbf')  # BOM for Excel Cyrillic support
+    wrapper = io.TextIOWrapper(buf, encoding='utf-8', newline='')
+    writer = csv.writer(wrapper)
+    writer.writerow(['Date', 'ASIN', 'Type', 'Diff', 'Real Diff', 'Old Qty', 'New Qty', 'Product', 'Warehouse', 'User', 'Description'])
+    for row in qs.iterator():
+        writer.writerow([
+            row.created_at,
+            row.asin,
+            TYPE_LABELS.get(row.type_id, str(row.type_id)),
+            row.param_diff,
+            row.real_diff,
+            row.old_qty if row.old_qty is not None else '',
+            row.new_qty if row.new_qty is not None else '',
+            row.product_name,
+            row.vendor_name,
+            row.user_name,
+            row.description,
+        ])
+    wrapper.flush()
+    response = HttpResponse(buf.getvalue(), content_type='text/csv')
+    response['Content-Disposition'] = 'attachment; filename="ss-logs-export.csv"'
+    return response
+
+
 def explorer(request):
     # --- Parse filters from query params ---
     q = request.GET.get('q', '').strip()
@@ -65,17 +94,21 @@ def explorer(request):
     # Default date range: last 7 days
     if not date_from and not date_to:
         default_from = datetime.now(timezone.utc) - timedelta(days=7)
-        date_from = default_from.strftime('%Y-%m-%d')
-        date_to = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        date_from = default_from.strftime('%Y-%m-%dT00:00')
+        date_to = datetime.now(timezone.utc).strftime('%Y-%m-%dT23:59')
 
     # --- Build queryset ---
     qs = SoStockedLog.objects.all()
 
     if date_from:
-        qs = qs.filter(created_at__gte=date_from)
+        # datetime-local sends "2026-04-07T14:00", normalize for DB comparison
+        qs = qs.filter(created_at__gte=date_from.replace('T', ' '))
     if date_to:
-        # Include the full "to" day
-        qs = qs.filter(created_at__lte=date_to + ' 23:59:59')
+        to_val = date_to.replace('T', ' ')
+        # If no time component, include the full day
+        if len(to_val) <= 10:
+            to_val += ' 23:59:59'
+        qs = qs.filter(created_at__lte=to_val)
 
     if type_filter:
         try:
@@ -92,6 +125,10 @@ def explorer(request):
         )
 
     qs = qs.order_by('-created_at')
+
+    # --- CSV export ---
+    if request.GET.get('export') == 'csv':
+        return _export_csv(qs)
 
     # --- Paginate ---
     paginator = Paginator(qs, PAGE_SIZE)

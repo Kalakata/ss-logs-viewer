@@ -9,10 +9,10 @@
   .filter-bar { position: sticky; top: var(--header-h); z-index: 50; background: #fff; border-bottom: 1px solid #ddd; padding: 6px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
   .filter-bar label { color: #888; font-size: 11px; white-space: nowrap; }
   .filter-bar input[type="text"],
-  .filter-bar input[type="date"],
+  .filter-bar input[type="datetime-local"],
   .filter-bar select { height: 26px; font-size: 11px; padding: 0 6px; border: 1px solid #ccc; border-radius: 3px; background: #fff; }
   .filter-bar input[type="text"] { width: 200px; }
-  .filter-bar input[type="date"] { width: 130px; }
+  .filter-bar input[type="datetime-local"] { width: 170px; }
   .filter-bar .btn-filter { height: 26px; font-size: 11px; padding: 0 10px; border: 1px solid #ccc; border-radius: 3px; background: #fff; cursor: pointer; color: #555; }
   .filter-bar .btn-filter:hover { background: #f0f0f0; }
   .filter-bar .btn-filter.active { background: #ffc107; border-color: #ffc107; color: #000; }
@@ -56,9 +56,9 @@
 
   <span class="sep"></span>
   <label>From</label>
-  <input type="date" name="from" value="{{ f_from }}">
+  <input type="datetime-local" name="from" value="{{ f_from }}">
   <label>To</label>
-  <input type="date" name="to" value="{{ f_to }}">
+  <input type="datetime-local" name="to" value="{{ f_to }}">
 
   <span class="sep"></span>
   <label>Type</label>
@@ -71,6 +71,7 @@
 
   <span class="sep"></span>
   <button type="submit" class="btn-filter">Apply</button>
+  <a href="/?{{ filter_qs }}{% if filter_qs %}&{% endif %}export=csv" class="btn-filter" style="text-decoration:none;">CSV</a>
 
   {% if f_q or f_type %}
     <a href="/" class="btn-filter" style="text-decoration:none;">Reset</a>
@@ -93,6 +94,7 @@
       <th style="text-align:center;">Bundle</th>
       <th>Type</th>
       <th style="text-align:right;">Diff</th>
+      <th style="text-align:right;">Units</th>
       <th>Qty</th>
       <th>Product</th>
       <th>Warehouse</th>
@@ -109,6 +111,7 @@
       <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
       <td style="text-align:right;" class="{% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.real_diff != log.param_diff %}<span class="real-diff">{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
+      <td style="text-align:right;" class="{% if log.units > 0 %}diff-pos{% elif log.units < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.units > 0 %}+{% endif %}{{ log.units }}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
       <td style="font-size:11px;" class="desc">{{ log.product_name|truncatechars:60 }}</td>
       <td><span class="wh-name">{{ log.vendor_name }}</span></td>
