@@ -120,7 +120,8 @@
 {% if page_obj.paginator.num_pages > 1 %}
 <div class="pagination-bar">
   {% if page_obj.has_previous %}
-    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.previous_page_number }}">&laquo; Prev</a>
+    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page=1">&laquo; First</a>
+    <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.previous_page_number }}">&lsaquo; Prev</a>
   {% endif %}
   <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
   <span>({{ page_obj.paginator.count }} total)</span>
