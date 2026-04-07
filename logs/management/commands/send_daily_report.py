@@ -8,8 +8,8 @@ from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.management.base import BaseCommand
 
-from logs.models import Product
-from logs.sostocked import fetch_all_logs_by_period
+from logs.models import Product, SoStockedLog
+from logs.sostocked import TYPE_LABELS
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +39,32 @@ class Command(BaseCommand):
             self.stderr.write('REPORT_RECIPIENTS not configured, skipping.')
             return
 
-        self.stdout.write('Fetching last 1 day of logs...')
-        all_logs = fetch_all_logs_by_period(1)
-        logs = [l for l in all_logs if l['type_id'] == 14000]
+        self.stdout.write('Querying local DB for last 1 day...')
+        cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+        cutoff_str = cutoff.strftime('%Y-%m-%d %H:%M:%S')
+        qs = SoStockedLog.objects.filter(
+            type_id=14000,
+            created_at__gte=cutoff_str,
+        )
+        logs = []
+        for row in qs:
+            logs.append({
+                'filter_asin': row.asin,
+                'id': row.ss_id,
+                'created_at': row.created_at,
+                'order_number': row.order_number,
+                'param_diff': row.param_diff,
+                'real_diff': row.real_diff,
+                'old_qty': row.old_qty,
+                'new_qty': row.new_qty,
+                'user_name': row.user_name,
+                'description': row.description,
+                'vendor_name': row.vendor_name,
+                'product_name': row.product_name,
+                'order_shipment_id': row.order_shipment_id,
+                'type_id': row.type_id,
+                'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
+            })
         self.stdout.write(f'Found {len(logs)} manual inventory changes.')
 
         if not logs:
