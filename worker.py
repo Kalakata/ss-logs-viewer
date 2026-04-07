@@ -46,9 +46,9 @@ def main():
     # On first run with empty DB, do a full backfill
     from logs.models import SoStockedLog
     if SoStockedLog.objects.count() == 0:
-        logger.info('Empty DB detected, running backfill (90 days)...')
+        logger.info('Empty DB detected, running backfill (3 days)...')
         try:
-            call_command('sync_logs', '--days', '90')
+            call_command('sync_logs', '--days', '3')
         except Exception:
             logger.exception('Backfill failed')
     else:
