@@ -76,10 +76,13 @@
   </select>
 
   <span class="sep"></span>
+  <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" name="phantom" value="1" {% if f_phantom %}checked{% endif %} style="margin:0;"> Phantom only</label>
+
+  <span class="sep"></span>
   <button type="submit" class="btn-filter">Apply</button>
   <a href="/movements/?{{ filter_qs }}{% if filter_qs %}&{% endif %}export=csv" class="btn-filter">CSV</a>
 
-  {% if f_q or f_user %}
+  {% if f_q or f_user or f_phantom %}
     <a href="/movements/" class="btn-filter">Reset</a>
   {% endif %}
 

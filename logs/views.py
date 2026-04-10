@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 from django.core.management import call_command
 from django.core.paginator import Paginator
-from django.db.models import Q
+from django.db.models import F, Q
 from django.http import HttpResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
@@ -54,6 +54,7 @@ def explorer(request):
     date_to = request.GET.get('to', '')
     type_filter = request.GET.get('type', '')
     user_filter = request.GET.get('user', '').strip()
+    phantom_filter = request.GET.get('phantom', '')
     page_num = request.GET.get('page', '1')
 
     try:
@@ -95,6 +96,9 @@ def explorer(request):
             | Q(user_name__icontains=q)
             | Q(description__icontains=q)
         )
+
+    if phantom_filter:
+        qs = qs.exclude(param_diff=F('real_diff'))
 
     qs = qs.order_by('-created_at')
 
@@ -161,6 +165,8 @@ def explorer(request):
         filter_params.append(f'type={type_filter}')
     if user_filter:
         filter_params.append(f'user={user_filter}')
+    if phantom_filter:
+        filter_params.append('phantom=1')
     filter_qs = '&'.join(filter_params)
 
     return render(request, 'logs/explorer.html', {
@@ -174,6 +180,7 @@ def explorer(request):
         'f_to': date_to,
         'f_type': type_filter,
         'f_user': user_filter,
+        'f_phantom': phantom_filter,
     })
 
 
@@ -183,6 +190,7 @@ def movements(request):
     date_from = request.GET.get('from', '')
     date_to = request.GET.get('to', '')
     user_filter = request.GET.get('user', '').strip()
+    phantom_filter = request.GET.get('phantom', '')
     page_num = request.GET.get('page', '1')
 
     try:
@@ -216,6 +224,9 @@ def movements(request):
             | Q(user_name__icontains=q)
             | Q(description__icontains=q)
         )
+
+    if phantom_filter:
+        qs = qs.exclude(param_diff=F('real_diff'))
 
     qs = qs.order_by('-created_at')
 
@@ -317,6 +328,8 @@ def movements(request):
         filter_params.append(f'to={date_to}')
     if user_filter:
         filter_params.append(f'user={user_filter}')
+    if phantom_filter:
+        filter_params.append('phantom=1')
     filter_qs = '&'.join(filter_params)
 
     return render(request, 'logs/movements.html', {
@@ -330,6 +343,7 @@ def movements(request):
         'f_from': date_from,
         'f_to': date_to,
         'f_user': user_filter,
+        'f_phantom': phantom_filter,
     })
 
 
