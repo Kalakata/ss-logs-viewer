@@ -22,32 +22,33 @@ chrome.storage.local.get(['ssUnseenCount'], function(data) {
   updateBadge(data.ssUnseenCount || 0);
 });
 
-// Use chrome.alarms for reliable recurring polls (MV3 kills setInterval)
+// Clear stale state on install/update so notifications work fresh
+chrome.runtime.onInstalled.addListener(function() {
+  chrome.storage.local.remove(['ssLastSeen', 'ssSeenIds', 'ssUnseenCount', 'ssPollLock']);
+  pollShade();
+});
+
+// Use chrome.alarms for reliable recurring polls
 chrome.alarms.create('shade-poll', { periodInMinutes: 1 });
 
 chrome.alarms.onAlarm.addListener(function(alarm) {
   if (alarm.name === 'shade-poll') pollShade();
 });
 
-// Also poll on install/update
-chrome.runtime.onInstalled.addListener(function() {
-  pollShade();
-});
-
-// Poll on service worker wake
-pollShade();
-
 function pollShade() {
+  console.log('[Guard] polling...');
   chrome.storage.local.get(['ssLastSeen', 'ssUnseenCount', 'ssSeenIds'], function(data) {
     var since = data.ssLastSeen || '';
     var url = API_URL + '/api/phantom-logs/?token=' + encodeURIComponent(API_TOKEN);
     if (since) url += '&since=' + encodeURIComponent(since);
 
     fetch(url).then(function(r) { return r.json(); }).then(function(logs) {
+      console.log('[Guard] API returned ' + (logs ? logs.length : 0) + ' logs');
       if (!logs || !logs.length) return;
 
       var seenIds = data.ssSeenIds || [];
       var newLogs = logs.filter(function(l) { return seenIds.indexOf(l.id) === -1; });
+      console.log('[Guard] new logs: ' + newLogs.length + ' (seen: ' + seenIds.length + ')');
       if (!newLogs.length) return;
 
       // Update storage
@@ -61,12 +62,15 @@ function pollShade() {
 
       // Send to one SoStocked tab for toast display
       chrome.tabs.query({ url: 'https://app.sostocked.com/*' }, function(tabs) {
+        console.log('[Guard] found ' + tabs.length + ' SoStocked tabs');
         if (tabs.length > 0) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: 'shade-alerts', logs: newLogs });
+          chrome.tabs.sendMessage(tabs[0].id, { type: 'shade-alerts', logs: newLogs }).catch(function(e) {
+            console.log('[Guard] sendMessage failed:', e.message);
+          });
         }
       });
     }).catch(function(e) {
-      console.log('[SoStocked Guard] poll error:', e.message);
+      console.log('[Guard] poll error:', e.message);
     });
   });
 }

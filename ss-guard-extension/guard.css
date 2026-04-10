@@ -65,36 +65,36 @@
 
 /* Shade alert toasts */
 .ss-shade-toast {
-  background: #ffffff;
-  color: #1e293b;
-  border-radius: 8px;
-  padding: 10px 14px;
+  background: #fff;
+  color: #333;
+  padding: 11px 15px;
   font-size: 12px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
   cursor: pointer;
-  animation: ss-toast-in 0.3s ease;
-  border-left: 4px solid #8b5cf6;
+  animation: ss-toast-in 0.2s ease;
+  border-radius: 3px;
 }
 
 .ss-shade-toast-title {
-  font-weight: 700;
-  font-size: 13px;
-  color: #6d28d9;
-  margin-bottom: 4px;
+  font-weight: 600;
+  font-size: 12px;
+  color: #c0392b;
+  margin-bottom: 3px;
 }
 
 .ss-shade-toast-line {
-  color: #475569;
-  line-height: 1.4;
+  color: #555;
+  line-height: 1.35;
+  font-size: 11px;
 }
 
 .ss-shade-toast-time {
-  color: #94a3b8;
-  font-size: 11px;
-  margin-top: 4px;
+  color: #999;
+  font-size: 10px;
+  margin-top: 3px;
 }
 
 @keyframes ss-toast-in {
-  from { opacity: 0; transform: translateX(40px); }
-  to { opacity: 1; transform: translateX(0); }
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
