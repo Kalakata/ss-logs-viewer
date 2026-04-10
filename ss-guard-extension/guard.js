@@ -1,22 +1,25 @@
 /**
- * SoStocked Inventory Guard
+ * SoStocked Inventory Guard v2
  *
- * Monitors work order edit pages. For each product row, compares the Shipped
- * input value against the INV (inventory) counter. If shipped > inventory,
- * the input is highlighted red and the Save & Preview button is blocked.
- *
- * Approach: Uses a persistent overlay div (outside the Vue app tree) for
- * warnings, CSS classes for input highlighting, and click interception
- * on the Save button. This survives Vue re-renders.
+ * - Monitors work order edit pages, blocks overshipping
+ * - Override button lets users proceed intentionally
+ * - Polls backend for phantom quantity (shade) alerts
+ * - Shows in-page toasts for new detections
  */
 
 (function ssGuard() {
   'use strict';
 
-  const POLL_MS = 400;
+  var GUARD_POLL_MS = 400;
+  var SHADE_POLL_MS = 60000;
+  var TOAST_DURATION_MS = 10000;
+  var MAX_TOASTS = 5;
 
-  // Persistent overlay container — lives outside the Vue app tree
-  let overlay = null;
+  // --- Guard state ---
+  var currentViolations = [];
+  var guardOverride = false;
+  var overlay = null;
+
   function getOverlay() {
     if (overlay && document.body.contains(overlay)) return overlay;
     overlay = document.createElement('div');
@@ -26,101 +29,8 @@
     return overlay;
   }
 
-  // Track violations state
-  let currentViolations = [];
-
-  function check() {
-    // Only run on work order / purchase order edit pages
-    if (!location.pathname.includes('/orders/') || !location.pathname.includes('/edit/')) {
-      hideOverlay();
-      return;
-    }
-
-    const rows = document.querySelectorAll('.shipmen-logistics-table__row');
-    if (!rows.length) return;
-
-    const violations = [];
-
-    for (const row of rows) {
-      // Parse INV value
-      const invCell = row.querySelector('.shipmen-logistics-table__cell.width-120');
-      if (!invCell) continue;
-      const invSpan = invCell.querySelector('span.d-block');
-      if (!invSpan) continue;
-      const invMatch = invSpan.textContent.match(/INV:\s*(\d+)/);
-      if (!invMatch) continue;
-      const inv = parseInt(invMatch[1], 10);
-
-      // Get Shipped input
-      const shippedCell = row.querySelector('.shipmen-logistics-table__cell.width-115');
-      if (!shippedCell) continue;
-      const input = shippedCell.querySelector('input.form-control');
-      if (!input) continue;
-
-      const shipped = parseInt(input.value, 10) || 0;
-
-      if (shipped > inv) {
-        // Highlight input red via CSS class on the cell
-        shippedCell.classList.add('ss-guard-over');
-
-        // Add or update warning badge
-        let badge = shippedCell.querySelector('.ss-guard-warning');
-        if (!badge) {
-          badge = document.createElement('span');
-          badge.className = 'ss-guard-warning';
-          shippedCell.appendChild(badge);
-        }
-        badge.textContent = shipped + ' > ' + inv + ' INV';
-
-        violations.push({ shipped, inv });
-      } else {
-        shippedCell.classList.remove('ss-guard-over');
-        const badge = shippedCell.querySelector('.ss-guard-warning');
-        if (badge) badge.remove();
-      }
-
-      // Bind input listeners (re-bind every poll since Vue replaces DOM nodes)
-      if (!input.dataset.ssGuard) {
-        input.dataset.ssGuard = '1';
-        input.addEventListener('input', check);
-        input.addEventListener('change', check);
-      }
-    }
-
-    currentViolations = violations;
-
-    // Handle Save button — use click interception instead of CSS pointer-events
-    const saveBtn = getSaveButton();
-    if (saveBtn && !saveBtn.dataset.ssGuardIntercept) {
-      saveBtn.dataset.ssGuardIntercept = '1';
-      saveBtn.addEventListener('click', function(e) {
-        if (currentViolations.length > 0) {
-          e.stopImmediatePropagation();
-          e.preventDefault();
-          showOverlay(currentViolations.length);
-        }
-      }, true); // capture phase — fires before the app's handler
-    }
-
-    // Update visual state
-    if (violations.length > 0) {
-      showOverlay(violations.length);
-    } else {
-      hideOverlay();
-    }
-  }
-
-  function getSaveButton() {
-    const buttons = document.querySelectorAll('button.btn.btn-success.btn-lg');
-    for (const btn of buttons) {
-      if (btn.textContent.trim().includes('Save')) return btn;
-    }
-    return null;
-  }
-
   function showOverlay(count) {
     var ov = getOverlay();
-    // Build overlay content safely with DOM methods
     ov.textContent = '';
     var box = document.createElement('div');
     box.style.cssText = 'background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:10px 20px;' +
@@ -131,9 +41,18 @@
     icon.textContent = '\u26A0';
     box.appendChild(icon);
     var msg = document.createElement('span');
-    msg.textContent = count + (count === 1 ? ' продукт' : ' продукта') +
-      ' с повече единици от наличните. Коригирайте преди запис.';
+    msg.textContent = count + (count === 1 ? ' \u043F\u0440\u043E\u0434\u0443\u043A\u0442' : ' \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0430') +
+      ' \u0441 \u043F\u043E\u0432\u0435\u0447\u0435 \u0435\u0434\u0438\u043D\u0438\u0446\u0438 \u043E\u0442 \u043D\u0430\u043B\u0438\u0447\u043D\u0438\u0442\u0435. \u041A\u043E\u0440\u0438\u0433\u0438\u0440\u0430\u0439\u0442\u0435 \u043F\u0440\u0435\u0434\u0438 \u0437\u0430\u043F\u0438\u0441.';
     box.appendChild(msg);
+    var overrideBtn = document.createElement('button');
+    overrideBtn.className = 'ss-guard-override-btn';
+    overrideBtn.textContent = '\u041F\u0440\u043E\u0434\u044A\u043B\u0436\u0438 \u0432\u044A\u043F\u0440\u0435\u043A\u0438 \u0442\u043E\u0432\u0430';
+    overrideBtn.addEventListener('click', function() {
+      guardOverride = true;
+      hideOverlay();
+      setTimeout(function() { guardOverride = false; }, 10000);
+    });
+    box.appendChild(overrideBtn);
     ov.appendChild(box);
   }
 
@@ -143,9 +62,175 @@
     }
   }
 
-  // Poll — resilient to Vue re-renders since we re-query the DOM every time
-  setInterval(check, POLL_MS);
+  function getSaveButton() {
+    var buttons = document.querySelectorAll('button.btn.btn-success.btn-lg');
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].textContent.trim().includes('Save')) return buttons[i];
+    }
+    return null;
+  }
 
-  // Initial check
-  check();
+  function guardCheck() {
+    if (!location.pathname.includes('/orders/') || !location.pathname.includes('/edit/')) {
+      hideOverlay();
+      return;
+    }
+
+    var rows = document.querySelectorAll('.shipmen-logistics-table__row');
+    if (!rows.length) return;
+
+    var violations = [];
+
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var invCell = row.querySelector('.shipmen-logistics-table__cell.width-120');
+      if (!invCell) continue;
+      var invSpan = invCell.querySelector('span.d-block');
+      if (!invSpan) continue;
+      var m = invSpan.textContent.match(/INV:\s*(\d+)/);
+      if (!m) continue;
+      var inv = parseInt(m[1], 10);
+
+      var shippedCell = row.querySelector('.shipmen-logistics-table__cell.width-115');
+      if (!shippedCell) continue;
+      var input = shippedCell.querySelector('input.form-control');
+      if (!input) continue;
+
+      var shipped = parseInt(input.value, 10) || 0;
+
+      if (shipped > inv) {
+        shippedCell.classList.add('ss-guard-over');
+        var badge = shippedCell.querySelector('.ss-guard-warning');
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'ss-guard-warning';
+          shippedCell.appendChild(badge);
+        }
+        badge.textContent = shipped + ' > ' + inv + ' INV';
+        violations.push({ shipped: shipped, inv: inv });
+      } else {
+        shippedCell.classList.remove('ss-guard-over');
+        var b = shippedCell.querySelector('.ss-guard-warning');
+        if (b) b.remove();
+      }
+
+      if (!input.dataset.ssGuard) {
+        input.dataset.ssGuard = '1';
+        input.addEventListener('input', guardCheck);
+        input.addEventListener('change', guardCheck);
+      }
+    }
+
+    currentViolations = violations;
+
+    var saveBtn = getSaveButton();
+    if (saveBtn && !saveBtn.dataset.ssGuardIntercept) {
+      saveBtn.dataset.ssGuardIntercept = '1';
+      saveBtn.addEventListener('click', function(e) {
+        if (currentViolations.length > 0 && !guardOverride) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          showOverlay(currentViolations.length);
+        }
+        if (guardOverride) {
+          guardOverride = false;
+        }
+      }, true);
+    }
+
+    if (violations.length > 0 && !guardOverride) {
+      showOverlay(violations.length);
+    } else {
+      hideOverlay();
+    }
+  }
+
+  // --- Shade alert toasts ---
+  var toastContainer = null;
+
+  function getToastContainer() {
+    if (toastContainer && document.body.contains(toastContainer)) return toastContainer;
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'ss-shade-toasts';
+    toastContainer.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99998;display:flex;flex-direction:column;gap:8px;max-width:380px;';
+    document.body.appendChild(toastContainer);
+    return toastContainer;
+  }
+
+  function showToast(log) {
+    var container = getToastContainer();
+    if (container.children.length >= MAX_TOASTS) return;
+
+    var toast = document.createElement('div');
+    toast.className = 'ss-shade-toast';
+
+    var title = document.createElement('div');
+    title.className = 'ss-shade-toast-title';
+    title.textContent = '\u26A0 Phantom quantity detected';
+    toast.appendChild(title);
+
+    var line1 = document.createElement('div');
+    line1.className = 'ss-shade-toast-line';
+    line1.textContent = log.asin + ' | #' + log.shipment_id + ' | shade: ' + (log.shade > 0 ? '+' : '') + log.shade;
+    toast.appendChild(line1);
+
+    var line2 = document.createElement('div');
+    line2.className = 'ss-shade-toast-line';
+    line2.textContent = log.warehouse + ' \u2014 ' + log.user;
+    toast.appendChild(line2);
+
+    var timeEl = document.createElement('div');
+    timeEl.className = 'ss-shade-toast-time';
+    timeEl.textContent = relativeTime(log.created_at);
+    toast.appendChild(timeEl);
+
+    toast.addEventListener('click', function() { toast.remove(); });
+
+    container.insertBefore(toast, container.firstChild);
+
+    setTimeout(function() {
+      if (toast.parentElement) toast.remove();
+    }, TOAST_DURATION_MS);
+  }
+
+  function relativeTime(dateStr) {
+    if (!dateStr) return '';
+    var d = new Date(dateStr.replace(' ', 'T') + '-07:00');
+    var diff = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (diff < 1) return '\u043F\u0440\u0435\u0434\u0438 \u043C\u0430\u043B\u043A\u043E';
+    if (diff < 60) return '\u043F\u0440\u0435\u0434\u0438 ' + diff + ' \u043C\u0438\u043D.';
+    var hours = Math.floor(diff / 60);
+    if (hours < 24) return '\u043F\u0440\u0435\u0434\u0438 ' + hours + ' \u0447.';
+    return '\u043F\u0440\u0435\u0434\u0438 ' + Math.floor(hours / 24) + ' \u0434\u043D.';
+  }
+
+  // --- Shade polling ---
+  function pollShade() {
+    chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssLastSeen', 'ssUnseenCount'], function(data) {
+      var apiUrl = data.ssApiUrl;
+      var token = data.ssApiToken;
+      if (!apiUrl || !token) return;
+
+      var since = data.ssLastSeen || '';
+      var url = apiUrl + '/api/phantom-logs/?token=' + encodeURIComponent(token);
+      if (since) url += '&since=' + encodeURIComponent(since);
+
+      fetch(url).then(function(r) { return r.json(); }).then(function(logs) {
+        if (!logs || !logs.length) return;
+
+        logs.forEach(function(log) { showToast(log); });
+
+        var newest = logs[0].created_at;
+        var unseen = (data.ssUnseenCount || 0) + logs.length;
+        chrome.storage.local.set({ ssLastSeen: newest, ssUnseenCount: unseen });
+      }).catch(function() { /* silently skip */ });
+    });
+  }
+
+  // --- Init ---
+  setInterval(guardCheck, GUARD_POLL_MS);
+  guardCheck();
+
+  setInterval(pollShade, SHADE_POLL_MS);
+  setTimeout(pollShade, 2000);
 })();

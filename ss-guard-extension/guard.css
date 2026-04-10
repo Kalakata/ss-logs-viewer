@@ -43,3 +43,58 @@
   content: "\26A0";
   font-size: 18px;
 }
+
+/* Override button in warning banner */
+.ss-guard-override-btn {
+  background: transparent;
+  border: 1px solid #991b1b;
+  color: #991b1b;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+.ss-guard-override-btn:hover {
+  background: #991b1b;
+  color: #fff;
+}
+
+/* Shade alert toasts */
+.ss-shade-toast {
+  background: #1e1b4b;
+  color: #e0e7ff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  cursor: pointer;
+  animation: ss-toast-in 0.3s ease;
+  border-left: 4px solid #8b5cf6;
+}
+
+.ss-shade-toast-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: #c4b5fd;
+  margin-bottom: 4px;
+}
+
+.ss-shade-toast-line {
+  color: #e0e7ff;
+  line-height: 1.4;
+}
+
+.ss-shade-toast-time {
+  color: #818cf8;
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+@keyframes ss-toast-in {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
