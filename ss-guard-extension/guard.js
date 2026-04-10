@@ -234,11 +234,23 @@
       fetch(url).then(function(r) { return r.json(); }).then(function(logs) {
         if (!logs || !logs.length) return;
 
-        logs.forEach(function(log) { showToast(log); });
+        // Filter out already-seen logs by ID
+        var seenIds = data.ssSeenIds || [];
+        var newLogs = logs.filter(function(l) { return seenIds.indexOf(l.id) === -1; });
+        if (!newLogs.length) return;
 
-        var newest = logs[0].created_at;
-        var unseen = (data.ssUnseenCount || 0) + logs.length;
-        chrome.storage.local.set({ ssLastSeen: newest, ssUnseenCount: unseen });
+        newLogs.forEach(function(log) { showToast(log); });
+
+        // Store the newest timestamp + 1 second to avoid re-fetching the same log
+        var newest = newLogs[0].created_at;
+        var d = new Date(newest.replace(' ', 'T') + '-07:00');
+        d.setSeconds(d.getSeconds() + 1);
+        var bumped = d.toISOString();
+
+        // Keep last 200 seen IDs to prevent duplicates
+        var updatedIds = newLogs.map(function(l) { return l.id; }).concat(seenIds).slice(0, 200);
+        var unseen = (data.ssUnseenCount || 0) + newLogs.length;
+        chrome.storage.local.set({ ssLastSeen: bumped, ssUnseenCount: unseen, ssSeenIds: updatedIds });
       }).catch(function() { /* silently skip */ });
     });
   }
