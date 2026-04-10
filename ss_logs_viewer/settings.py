@@ -105,3 +105,4 @@ REPORT_RECIPIENTS = [
     r.strip() for r in os.environ.get('REPORT_RECIPIENTS', '').split(',') if r.strip()
 ]
 CRON_SECRET = os.environ.get('CRON_SECRET', '')
+EXTENSION_API_TOKEN = os.environ.get('EXTENSION_API_TOKEN', '')

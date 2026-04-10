@@ -19,6 +19,7 @@ services:
       EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
       REPORT_RECIPIENTS: ${REPORT_RECIPIENTS:-}
       CRON_SECRET: ${CRON_SECRET:-}
+      EXTENSION_API_TOKEN: ${EXTENSION_API_TOKEN:-}
       SQLITE_DIR: /app/db
     volumes:
       - db_data:/app/db
