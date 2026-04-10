@@ -104,10 +104,8 @@
 
     // Update visual state
     if (violations.length > 0) {
-      if (saveBtn) saveBtn.classList.add('ss-guard-blocked');
       showOverlay(violations.length);
     } else {
-      if (saveBtn) saveBtn.classList.remove('ss-guard-blocked');
       hideOverlay();
     }
   }

@@ -24,14 +24,6 @@
   50% { opacity: 0.7; }
 }
 
-/* Blocked Save button */
-.ss-guard-blocked {
-  opacity: 0.4 !important;
-  pointer-events: none !important;
-  cursor: not-allowed !important;
-  position: relative !important;
-}
-
 /* Banner above blocked button */
 .ss-guard-banner {
   background: #fef2f2;
