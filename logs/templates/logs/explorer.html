@@ -52,7 +52,12 @@
   .diff-zero { color: #999; }
   .raw-diff { color: #bbb; font-size: 10px; margin-left: 2px; font-weight: 400; }
 
-  .asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e0f2fe; color: #0369a1; font-size: 11px; }
+  .asin-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #e0f2fe; color: #0369a1; font-size: 11px; cursor: pointer; }
+  .asin-tag:hover { background: #bae6fd; }
+  .shipment-tag { cursor: pointer; }
+  .shipment-tag:hover { color: #1e40af; }
+  .copied-flash { animation: copiedFlash 0.4s ease; }
+  @keyframes copiedFlash { 0% { background: #86efac; } 100% { background: inherit; } }
   .type-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #f1f5f9; color: #475569; font-size: 11px; }
   .qty-change { color: #888; font-size: 11px; }
   .wh-name { font-size: 11px; color: #7c3aed; }
@@ -134,14 +139,14 @@
     {% for log in logs %}
     <tr data-units="{{ log.param_diff }}" data-asin="{{ log.filter_asin }}" {% if log.shade %}class="row-phantom"{% endif %}>
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
-      <td><span class="asin-tag">{{ log.filter_asin }}</span></td>
+      <td><span class="asin-tag" data-copy="{{ log.filter_asin }}">{{ log.filter_asin }}</span></td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
       <td style="text-align:right;" class="units-cell {% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.units > 0 %}+{% endif %}{{ log.units }})</span>{% endif %}{% if log.shade %}<span class="shade-val">real:{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
       <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
       <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:80 }}</td>
       <td><span class="wh-name">{{ log.vendor_name }}</span></td>
-      <td style="font-size:10px;color:#666;white-space:nowrap;">{% if log.order_shipment_id %}#{{ log.order_shipment_id }}{% endif %}</td>
+      <td style="font-size:10px;color:#666;white-space:nowrap;">{% if log.order_shipment_id %}<span class="shipment-tag" data-copy="{{ log.order_shipment_id }}">#{{ log.order_shipment_id }}</span>{% endif %}</td>
       <td style="white-space:nowrap;">{{ log.user_name }}</td>
       <td class="desc" title="{{ log.description }}">{{ log.description|truncatechars:40 }}</td>
     </tr>
@@ -244,6 +249,17 @@ document.querySelectorAll('.ss-date').forEach(function(el) {
   }
 
   tbody.addEventListener('mousedown', function(e) {
+    // Click on ASIN or shipment ID → copy to clipboard, don't select row
+    var copyEl = e.target.closest('[data-copy]');
+    if (copyEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      navigator.clipboard.writeText(copyEl.dataset.copy);
+      copyEl.classList.remove('copied-flash');
+      void copyEl.offsetWidth; // reflow to restart animation
+      copyEl.classList.add('copied-flash');
+      return;
+    }
     var tr = e.target.closest('tr');
     if (!tr || !tr.dataset.units) return;
     e.preventDefault();
