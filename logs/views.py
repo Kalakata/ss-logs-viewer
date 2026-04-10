@@ -146,6 +146,7 @@ def explorer(request):
             'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
             'bundle_qty': bq,
             'units': (row.param_diff or 0) * bq,
+            'shade': (row.param_diff or 0) - (row.real_diff or 0),
         })
 
     # Build query string without page param for pagination links
@@ -280,6 +281,7 @@ def movements(request):
             'id': row.ss_id,
             'created_at': row.created_at,
             'param_diff': row.param_diff,
+            'real_diff': row.real_diff,
             'old_qty': row.old_qty,
             'new_qty': row.new_qty,
             'user_name': row.user_name,
@@ -289,6 +291,7 @@ def movements(request):
             'type_label': TYPE_LABELS.get(row.type_id, str(row.type_id)),
             'bundle_qty': bq,
             'units': (row.param_diff or 0) * bq,
+            'shade': (row.param_diff or 0) - (row.real_diff or 0),
             'movement_group': gid,
             'movement_balanced': meta.get('balanced'),
             'movement_net_units': meta.get('net_units', 0),
