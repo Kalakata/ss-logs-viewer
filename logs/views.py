@@ -7,12 +7,13 @@ from datetime import datetime, timedelta, timezone
 from django.core.management import call_command
 from django.core.paginator import Paginator
 from django.db.models import F, Q
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 
 from .models import Product, SoStockedLog
+from django.conf import settings
 from .sostocked import TYPE_LABELS
 
 logger = logging.getLogger(__name__)
@@ -457,3 +458,43 @@ def debug_types(request):
     except Exception as e:
         import traceback
         return HttpResponse(json.dumps({'error': str(e), 'trace': traceback.format_exc()}), content_type='application/json', status=500)
+
+
+@require_GET
+def phantom_api(request):
+    """JSON API for the browser extension — returns phantom logs (shade != 0)."""
+    token = request.GET.get('token', '')
+    if not settings.EXTENSION_API_TOKEN or token != settings.EXTENSION_API_TOKEN:
+        return JsonResponse({'error': 'Forbidden'}, status=403)
+
+    since = request.GET.get('since', '')
+    if not since:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=72)
+        since = cutoff.strftime('%Y-%m-%d %H:%M:%S')
+    else:
+        since = since.replace('T', ' ').replace('Z', '')
+
+    qs = SoStockedLog.objects.filter(
+        created_at__gte=since,
+    ).exclude(
+        param_diff=F('real_diff'),
+    ).order_by('-created_at')[:200]
+
+    logs = []
+    for row in qs:
+        logs.append({
+            'id': row.ss_id,
+            'asin': row.asin,
+            'shipment_id': row.order_shipment_id,
+            'shade': (row.param_diff or 0) - (row.real_diff or 0),
+            'param_diff': row.param_diff,
+            'real_diff': row.real_diff,
+            'warehouse': row.vendor_name,
+            'user': row.user_name,
+            'created_at': row.created_at,
+            'description': row.description,
+        })
+
+    response = JsonResponse(logs, safe=False)
+    response['Access-Control-Allow-Origin'] = '*'
+    return response
