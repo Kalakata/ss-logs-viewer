@@ -1,6 +1,9 @@
 (function() {
   'use strict';
 
+  var DEFAULT_API_URL = 'https://srv1563194.hstgr.cloud:4443';
+  var DEFAULT_API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
+
   var listEl = document.getElementById('list');
   var badgeEl = document.getElementById('badge');
   var urlInput = document.getElementById('api-url');
@@ -8,10 +11,10 @@
 
   // Load settings
   chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssUnseenCount'], function(data) {
-    urlInput.value = data.ssApiUrl || '';
-    tokenInput.value = data.ssApiToken || '';
+    urlInput.value = data.ssApiUrl || DEFAULT_API_URL;
+    tokenInput.value = data.ssApiToken || DEFAULT_API_TOKEN;
     badgeEl.textContent = data.ssUnseenCount || 0;
-    fetchLogs(data.ssApiUrl, data.ssApiToken);
+    fetchLogs(data.ssApiUrl || DEFAULT_API_URL, data.ssApiToken || DEFAULT_API_TOKEN);
   });
 
   // Save settings on change

@@ -205,10 +205,13 @@
   }
 
   // --- Shade polling ---
+  var DEFAULT_API_URL = 'https://srv1563194.hstgr.cloud:4443';
+  var DEFAULT_API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
+
   function pollShade() {
     chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssLastSeen', 'ssUnseenCount'], function(data) {
-      var apiUrl = data.ssApiUrl;
-      var token = data.ssApiToken;
+      var apiUrl = data.ssApiUrl || DEFAULT_API_URL;
+      var token = data.ssApiToken || DEFAULT_API_TOKEN;
       if (!apiUrl || !token) return;
 
       var since = data.ssLastSeen || '';
