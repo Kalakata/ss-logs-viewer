@@ -21,7 +21,7 @@ django.setup()
 from django.core.management import call_command
 
 REPORT_HOUR_UTC = 4  # 4:00 AM UTC = 6:00 AM EET
-SYNC_INTERVAL = 3600  # 1 hour in seconds
+SYNC_INTERVAL = 60  # 1 minute in seconds
 
 
 def run_sync():
