@@ -7,17 +7,10 @@
   var listEl = document.getElementById('list');
   var badgeEl = document.getElementById('badge');
 
-  // Load unseen count and fetch logs
-  chrome.storage.local.get(['ssUnseenCount'], function(data) {
-    badgeEl.textContent = data.ssUnseenCount || 0;
-    fetchLogs();
-  });
-
-  // Mark all read
-  document.getElementById('mark-read').addEventListener('click', function() {
-    chrome.storage.local.set({ ssUnseenCount: 0 });
-    badgeEl.textContent = '0';
-  });
+  // Auto-mark as read on popup open, then fetch
+  chrome.storage.local.set({ ssUnseenCount: 0 });
+  badgeEl.textContent = '0';
+  fetchLogs();
 
   // Refresh
   document.getElementById('refresh').addEventListener('click', fetchLogs);
