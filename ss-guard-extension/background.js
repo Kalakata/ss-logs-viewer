@@ -1,6 +1,5 @@
 var API_URL = 'https://srv1563194.hstgr.cloud:4443';
 var API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
-var POLL_MS = 60000;
 
 // Badge management
 chrome.storage.onChanged.addListener(function(changes) {
@@ -23,7 +22,21 @@ chrome.storage.local.get(['ssUnseenCount'], function(data) {
   updateBadge(data.ssUnseenCount || 0);
 });
 
-// Polling — runs once in the background, sends new logs to one SoStocked tab
+// Use chrome.alarms for reliable recurring polls (MV3 kills setInterval)
+chrome.alarms.create('shade-poll', { periodInMinutes: 1 });
+
+chrome.alarms.onAlarm.addListener(function(alarm) {
+  if (alarm.name === 'shade-poll') pollShade();
+});
+
+// Also poll on install/update
+chrome.runtime.onInstalled.addListener(function() {
+  pollShade();
+});
+
+// Poll on service worker wake
+pollShade();
+
 function pollShade() {
   chrome.storage.local.get(['ssLastSeen', 'ssUnseenCount', 'ssSeenIds'], function(data) {
     var since = data.ssLastSeen || '';
@@ -52,10 +65,8 @@ function pollShade() {
           chrome.tabs.sendMessage(tabs[0].id, { type: 'shade-alerts', logs: newLogs });
         }
       });
-    }).catch(function() { /* silently skip */ });
+    }).catch(function(e) {
+      console.log('[SoStocked Guard] poll error:', e.message);
+    });
   });
 }
-
-// Poll on startup + interval
-setTimeout(pollShade, 2000);
-setInterval(pollShade, POLL_MS);

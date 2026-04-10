@@ -3,7 +3,7 @@
   "name": "SoStocked Inventory Guard",
   "version": "2.0",
   "description": "Inventory guard + phantom quantity alerts for SoStocked",
-  "permissions": ["storage", "tabs"],
+  "permissions": ["storage", "tabs", "alarms"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
