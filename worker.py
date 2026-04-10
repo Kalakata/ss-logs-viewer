@@ -40,6 +40,14 @@ def run_report():
         logger.exception('send_daily_report failed')
 
 
+def run_phantom_report():
+    logger.info('Running send_phantom_report...')
+    try:
+        call_command('send_phantom_report')
+    except Exception:
+        logger.exception('send_phantom_report failed')
+
+
 def main():
     logger.info('Worker started. Sync every %ds, report daily at %02d:00 UTC.', SYNC_INTERVAL, REPORT_HOUR_UTC)
 
@@ -66,6 +74,7 @@ def main():
         now = datetime.now(timezone.utc)
         if now.hour >= REPORT_HOUR_UTC and last_report_date != now.date():
             run_report()
+            run_phantom_report()
             last_report_date = now.date()
 
 
