@@ -4,24 +4,28 @@
 <meta charset="utf-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { background: #8b5cf6; }
-  body { width: 400px; max-height: 500px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 12px; background: #fafafa; color: #1e293b; margin: 3px; border-radius: 8px; overflow: hidden; }
-  .header { padding: 12px 14px; background: #f1f5f9; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; }
-  .header h1 { font-size: 14px; font-weight: 700; color: #334155; }
-  .badge { background: #ef4444; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 10px; }
-  .actions { padding: 8px 14px; display: flex; gap: 8px; border-bottom: 1px solid #e2e8f0; }
-  .actions button { background: #e2e8f0; border: none; color: #475569; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; }
-  .actions button:hover { background: #cbd5e1; }
-  .list { overflow-y: auto; max-height: 380px; }
-  .entry { padding: 10px 14px; border-bottom: 2px solid #e2e8f0; border-left: 3px solid transparent; }
-  .entry:hover { background: #f1f5f9; border-left-color: #8b5cf6; }
-  .entry:nth-child(even) { background: #f8fafc; }
-  .entry-asin { font-weight: 700; color: #6d28d9; }
-  .entry-detail { color: #475569; margin-top: 2px; }
-  .entry-shade { color: #dc2626; font-weight: 700; }
-  .entry-time { color: #94a3b8; font-size: 11px; margin-top: 2px; }
-  .entry-user { color: #64748b; }
-  .empty { padding: 40px; text-align: center; color: #94a3b8; }
+  body { width: 420px; max-height: 520px; font-family: 'Segoe UI', system-ui, sans-serif; font-size: 12px; background: #fff; color: #333; }
+  .header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 15px; font-weight: 600; color: #111; letter-spacing: -0.3px; }
+  .badge { background: #e8353e; color: #fff; font-size: 10px; font-weight: 700; min-width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 10px; padding: 0 6px; }
+  .actions { padding: 0 16px 10px; display: flex; gap: 6px; }
+  .actions button { background: none; border: 1px solid #ddd; color: #555; font-size: 11px; padding: 5px 12px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
+  .actions button:hover { border-color: #999; color: #111; }
+  .divider { height: 1px; background: #eee; }
+  .list { overflow-y: auto; max-height: 400px; }
+  .entry { padding: 12px 16px; transition: background 0.1s; }
+  .entry + .entry { border-top: 1px solid #f3f3f3; }
+  .entry:hover { background: #f9f9f9; }
+  .entry-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .entry-asin { font-weight: 600; color: #111; font-size: 12px; }
+  .entry-asin .shipment { color: #888; font-weight: 400; }
+  .entry-param { font-size: 15px; font-weight: 700; color: #111; font-variant-numeric: tabular-nums; }
+  .entry-desc { color: #666; margin-top: 3px; line-height: 1.35; font-size: 11px; }
+  .entry-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 5px; }
+  .entry-nums { font-size: 11px; color: #888; }
+  .entry-shade { color: #e8353e; font-weight: 600; }
+  .entry-meta { font-size: 10px; color: #aaa; text-align: right; }
+  .empty { padding: 50px 20px; text-align: center; color: #bbb; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -30,9 +34,10 @@
     <span class="badge" id="badge">0</span>
   </div>
   <div class="actions">
-    <button id="mark-read">&#x2713; &#x41C;&#x430;&#x440;&#x43A;&#x438;&#x440;&#x430;&#x439; &#x432;&#x441;&#x438;&#x447;&#x43A;&#x438; &#x43A;&#x430;&#x442;&#x43E; &#x43F;&#x440;&#x43E;&#x447;&#x435;&#x442;&#x435;&#x43D;&#x438;</button>
-    <button id="refresh">&#x21BB; &#x41E;&#x431;&#x43D;&#x43E;&#x432;&#x438;</button>
+    <button id="mark-read">&#x2713; Прочетени</button>
+    <button id="refresh">&#x21BB; Обнови</button>
   </div>
+  <div class="divider"></div>
   <div class="list" id="list"></div>
   <script src="popup.js"></script>
 </body>

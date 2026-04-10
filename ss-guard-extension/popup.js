@@ -52,41 +52,42 @@
       var entry = document.createElement('div');
       entry.className = 'entry';
 
-      var asinRow = document.createElement('div');
-      asinRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;';
+      var top = document.createElement('div');
+      top.className = 'entry-top';
       var asin = document.createElement('span');
       asin.className = 'entry-asin';
-      asin.textContent = log.asin + '  #' + log.shipment_id;
-      asinRow.appendChild(asin);
+      asin.textContent = log.asin;
+      var shipment = document.createElement('span');
+      shipment.className = 'shipment';
+      shipment.textContent = '  #' + log.shipment_id;
+      asin.appendChild(shipment);
+      top.appendChild(asin);
       var paramVal = document.createElement('span');
-      paramVal.style.cssText = 'font-size:16px;font-weight:800;color:#1e293b;';
+      paramVal.className = 'entry-param';
       paramVal.textContent = (log.param_diff > 0 ? '+' : '') + log.param_diff;
-      asinRow.appendChild(paramVal);
-      entry.appendChild(asinRow);
+      top.appendChild(paramVal);
+      entry.appendChild(top);
 
       var desc = document.createElement('div');
-      desc.className = 'entry-detail';
+      desc.className = 'entry-desc';
       desc.textContent = log.description;
       entry.appendChild(desc);
 
-      var detail = document.createElement('div');
-      detail.className = 'entry-detail';
-      detail.appendChild(document.createTextNode('\u0420\u0435\u0430\u043B\u043D\u043E: ' + log.real_diff + '  |  '));
+      var bottom = document.createElement('div');
+      bottom.className = 'entry-bottom';
+      var nums = document.createElement('span');
+      nums.className = 'entry-nums';
+      nums.textContent = '\u0420\u0435\u0430\u043B\u043D\u043E: ' + log.real_diff + '  \u00B7  ';
       var shadeSpan = document.createElement('span');
       shadeSpan.className = 'entry-shade';
       shadeSpan.textContent = '\u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438: ' + (log.shade > 0 ? '+' : '') + log.shade;
-      detail.appendChild(shadeSpan);
-      entry.appendChild(detail);
-
-      var warehouse = document.createElement('div');
-      warehouse.className = 'entry-user';
-      warehouse.textContent = log.warehouse + ' \u2014 ' + log.user;
-      entry.appendChild(warehouse);
-
-      var time = document.createElement('div');
-      time.className = 'entry-time';
-      time.textContent = relativeTime(log.created_at);
-      entry.appendChild(time);
+      nums.appendChild(shadeSpan);
+      bottom.appendChild(nums);
+      var meta = document.createElement('span');
+      meta.className = 'entry-meta';
+      meta.textContent = log.user + ' \u00B7 ' + relativeTime(log.created_at);
+      bottom.appendChild(meta);
+      entry.appendChild(bottom);
 
       listEl.appendChild(entry);
     });

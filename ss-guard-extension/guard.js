@@ -216,7 +216,13 @@
   var DEFAULT_API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
 
   function pollShade() {
-    chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssLastSeen', 'ssUnseenCount'], function(data) {
+    // Multi-tab lock: only one tab polls at a time
+    var now = Date.now();
+    chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssLastSeen', 'ssUnseenCount', 'ssPollLock'], function(data) {
+      // If another tab polled in the last 30 seconds, skip
+      if (data.ssPollLock && now - data.ssPollLock < 30000) return;
+      chrome.storage.local.set({ ssPollLock: now });
+
       var apiUrl = data.ssApiUrl || DEFAULT_API_URL;
       var token = data.ssApiToken || DEFAULT_API_TOKEN;
       if (!apiUrl || !token) return;
