@@ -1,28 +1,16 @@
 (function() {
   'use strict';
 
-  var DEFAULT_API_URL = 'https://srv1563194.hstgr.cloud:4443';
-  var DEFAULT_API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
+  var API_URL = 'https://srv1563194.hstgr.cloud:4443';
+  var API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
 
   var listEl = document.getElementById('list');
   var badgeEl = document.getElementById('badge');
-  var urlInput = document.getElementById('api-url');
-  var tokenInput = document.getElementById('api-token');
 
-  // Load settings
-  chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssUnseenCount'], function(data) {
-    urlInput.value = data.ssApiUrl || DEFAULT_API_URL;
-    tokenInput.value = data.ssApiToken || DEFAULT_API_TOKEN;
+  // Load unseen count and fetch logs
+  chrome.storage.local.get(['ssUnseenCount'], function(data) {
     badgeEl.textContent = data.ssUnseenCount || 0;
-    fetchLogs(data.ssApiUrl || DEFAULT_API_URL, data.ssApiToken || DEFAULT_API_TOKEN);
-  });
-
-  // Save settings on change
-  urlInput.addEventListener('change', function() {
-    chrome.storage.local.set({ ssApiUrl: urlInput.value.replace(/\/+$/, '') });
-  });
-  tokenInput.addEventListener('change', function() {
-    chrome.storage.local.set({ ssApiToken: tokenInput.value });
+    fetchLogs();
   });
 
   // Mark all read
@@ -32,24 +20,11 @@
   });
 
   // Refresh
-  document.getElementById('refresh').addEventListener('click', function() {
-    chrome.storage.local.get(['ssApiUrl', 'ssApiToken'], function(data) {
-      fetchLogs(data.ssApiUrl, data.ssApiToken);
-    });
-  });
+  document.getElementById('refresh').addEventListener('click', fetchLogs);
 
-  function fetchLogs(apiUrl, token) {
-    if (!apiUrl || !token) {
-      listEl.textContent = '';
-      var msg = document.createElement('div');
-      msg.className = 'empty';
-      msg.textContent = '\u041D\u0430\u0441\u0442\u0440\u043E\u0439\u0442\u0435 URL \u0438 \u0442\u043E\u043A\u0435\u043D \u043F\u043E-\u0434\u043E\u043B\u0443.';
-      listEl.appendChild(msg);
-      return;
-    }
-
+  function fetchLogs() {
     var since = new Date(Date.now() - 72 * 3600 * 1000).toISOString();
-    var url = apiUrl + '/api/phantom-logs/?token=' + encodeURIComponent(token) + '&since=' + encodeURIComponent(since);
+    var url = API_URL + '/api/phantom-logs/?token=' + encodeURIComponent(API_TOKEN) + '&since=' + encodeURIComponent(since);
 
     fetch(url)
       .then(function(r) { return r.json(); })
