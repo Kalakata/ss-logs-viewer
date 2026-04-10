@@ -1,0 +1,53 @@
+/* Shipped input overstock warning */
+.ss-guard-over .form-control {
+  border: 2px solid #ef4444 !important;
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+  font-weight: 700 !important;
+}
+
+/* Warning badge next to Shipped label */
+.ss-guard-warning {
+  display: inline-block;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 4px;
+  animation: ss-guard-pulse 1s ease-in-out infinite;
+}
+
+@keyframes ss-guard-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Blocked Save button */
+.ss-guard-blocked {
+  opacity: 0.4 !important;
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+  position: relative !important;
+}
+
+/* Banner above blocked button */
+.ss-guard-banner {
+  background: #fef2f2;
+  border: 2px solid #ef4444;
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #991b1b;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ss-guard-banner::before {
+  content: "\26A0";
+  font-size: 18px;
+}

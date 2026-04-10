@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "SoStocked Inventory Guard",
+  "version": "1.0",
+  "description": "Prevents shipping more units than available inventory on SoStocked work orders",
+  "permissions": [],
+  "content_scripts": [
+    {
+      "matches": ["https://app.sostocked.com/*"],
+      "js": ["guard.js"],
+      "css": ["guard.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
