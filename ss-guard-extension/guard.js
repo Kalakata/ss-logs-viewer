@@ -166,18 +166,23 @@
 
     var title = document.createElement('div');
     title.className = 'ss-shade-toast-title';
-    title.textContent = '\u26A0 Phantom quantity detected';
+    title.textContent = '\u26A0 \u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438 \u0435\u0434\u0438\u043D\u0438\u0446\u0438';
     toast.appendChild(title);
 
     var line1 = document.createElement('div');
     line1.className = 'ss-shade-toast-line';
-    line1.textContent = log.asin + ' | #' + log.shipment_id + ' | shade: ' + (log.shade > 0 ? '+' : '') + log.shade;
+    line1.textContent = log.asin + ' | #' + log.shipment_id;
     toast.appendChild(line1);
 
     var line2 = document.createElement('div');
     line2.className = 'ss-shade-toast-line';
-    line2.textContent = log.warehouse + ' \u2014 ' + log.user;
+    line2.textContent = '\u0417\u0430\u043B\u043E\u0436\u0435\u043D\u0438: ' + log.param_diff + ' | \u0420\u0435\u0430\u043B\u043D\u043E: ' + log.real_diff + ' | \u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438: ' + (log.shade > 0 ? '+' : '') + log.shade;
     toast.appendChild(line2);
+
+    var line3 = document.createElement('div');
+    line3.className = 'ss-shade-toast-line';
+    line3.textContent = log.warehouse + ' \u2014 ' + log.user;
+    toast.appendChild(line3);
 
     var timeEl = document.createElement('div');
     timeEl.className = 'ss-shade-toast-time';

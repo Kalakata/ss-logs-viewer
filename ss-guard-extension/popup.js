@@ -59,11 +59,11 @@
 
       var detail = document.createElement('div');
       detail.className = 'entry-detail';
+      detail.appendChild(document.createTextNode('\u0417\u0430\u043B\u043E\u0436\u0435\u043D\u0438: ' + log.param_diff + '  |  \u0420\u0435\u0430\u043B\u043D\u043E \u043D\u0430\u043B\u0438\u0447\u043D\u0438: ' + log.real_diff + '  |  '));
       var shadeSpan = document.createElement('span');
       shadeSpan.className = 'entry-shade';
-      shadeSpan.textContent = 'shade: ' + (log.shade > 0 ? '+' : '') + log.shade;
+      shadeSpan.textContent = '\u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438: ' + (log.shade > 0 ? '+' : '') + log.shade;
       detail.appendChild(shadeSpan);
-      detail.appendChild(document.createTextNode('  |  param: ' + log.param_diff + '  real: ' + log.real_diff));
       entry.appendChild(detail);
 
       var warehouse = document.createElement('div');
