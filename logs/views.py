@@ -95,6 +95,7 @@ def explorer(request):
             | Q(product_name__icontains=q)
             | Q(user_name__icontains=q)
             | Q(description__icontains=q)
+            | Q(order_shipment_id__icontains=q)
         )
 
     if phantom_filter:
@@ -223,6 +224,7 @@ def movements(request):
             | Q(product_name__icontains=q)
             | Q(user_name__icontains=q)
             | Q(description__icontains=q)
+            | Q(order_shipment_id__icontains=q)
         )
 
     if phantom_filter:
