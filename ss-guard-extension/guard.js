@@ -146,6 +146,7 @@
   }
 
   // --- Shade alert toasts ---
+  var chimeUrl = chrome.runtime.getURL('chime.wav');
   var toastContainer = null;
 
   function getToastContainer() {
@@ -160,6 +161,9 @@
   function showToast(log) {
     var container = getToastContainer();
     if (container.children.length >= MAX_TOASTS) return;
+
+    // Play chime
+    try { new Audio(chimeUrl).play(); } catch(e) {}
 
     var toast = document.createElement('div');
     toast.className = 'ss-shade-toast';

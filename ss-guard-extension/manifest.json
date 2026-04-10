@@ -25,5 +25,11 @@
   },
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["chime.wav"],
+      "matches": ["https://app.sostocked.com/*"]
+    }
+  ]
 }
