@@ -164,10 +164,17 @@
     var toast = document.createElement('div');
     toast.className = 'ss-shade-toast';
 
-    var title = document.createElement('div');
+    var titleRow = document.createElement('div');
+    titleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;';
+    var title = document.createElement('span');
     title.className = 'ss-shade-toast-title';
     title.textContent = '\u26A0 \u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438 \u0435\u0434\u0438\u043D\u0438\u0446\u0438';
-    toast.appendChild(title);
+    titleRow.appendChild(title);
+    var paramVal = document.createElement('span');
+    paramVal.style.cssText = 'font-size:16px;font-weight:800;color:#1e293b;';
+    paramVal.textContent = (log.param_diff > 0 ? '+' : '') + log.param_diff;
+    titleRow.appendChild(paramVal);
+    toast.appendChild(titleRow);
 
     var line1 = document.createElement('div');
     line1.className = 'ss-shade-toast-line';

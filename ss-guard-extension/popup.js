@@ -52,10 +52,17 @@
       var entry = document.createElement('div');
       entry.className = 'entry';
 
-      var asin = document.createElement('div');
+      var asinRow = document.createElement('div');
+      asinRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;';
+      var asin = document.createElement('span');
       asin.className = 'entry-asin';
       asin.textContent = log.asin + '  #' + log.shipment_id;
-      entry.appendChild(asin);
+      asinRow.appendChild(asin);
+      var paramVal = document.createElement('span');
+      paramVal.style.cssText = 'font-size:16px;font-weight:800;color:#1e293b;';
+      paramVal.textContent = (log.param_diff > 0 ? '+' : '') + log.param_diff;
+      asinRow.appendChild(paramVal);
+      entry.appendChild(asinRow);
 
       var desc = document.createElement('div');
       desc.className = 'entry-detail';
