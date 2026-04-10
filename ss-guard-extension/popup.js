@@ -57,9 +57,14 @@
       asin.textContent = log.asin + '  #' + log.shipment_id;
       entry.appendChild(asin);
 
+      var desc = document.createElement('div');
+      desc.className = 'entry-detail';
+      desc.textContent = log.description;
+      entry.appendChild(desc);
+
       var detail = document.createElement('div');
       detail.className = 'entry-detail';
-      detail.appendChild(document.createTextNode('\u0417\u0430\u043B\u043E\u0436\u0435\u043D\u0438: ' + log.param_diff + '  |  \u0420\u0435\u0430\u043B\u043D\u043E \u043D\u0430\u043B\u0438\u0447\u043D\u0438: ' + log.real_diff + '  |  '));
+      detail.appendChild(document.createTextNode('\u0420\u0435\u0430\u043B\u043D\u043E: ' + log.real_diff + '  |  '));
       var shadeSpan = document.createElement('span');
       shadeSpan.className = 'entry-shade';
       shadeSpan.textContent = '\u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438: ' + (log.shade > 0 ? '+' : '') + log.shade;
