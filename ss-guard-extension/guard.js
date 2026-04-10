@@ -211,54 +211,14 @@
     return '\u043F\u0440\u0435\u0434\u0438 ' + Math.floor(hours / 24) + ' \u0434\u043D.';
   }
 
-  // --- Shade polling ---
-  var DEFAULT_API_URL = 'https://srv1563194.hstgr.cloud:4443';
-  var DEFAULT_API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
-
-  function pollShade() {
-    // Multi-tab lock: only one tab polls at a time
-    var now = Date.now();
-    chrome.storage.local.get(['ssApiUrl', 'ssApiToken', 'ssLastSeen', 'ssUnseenCount', 'ssPollLock'], function(data) {
-      // If another tab polled in the last 30 seconds, skip
-      if (data.ssPollLock && now - data.ssPollLock < 30000) return;
-      chrome.storage.local.set({ ssPollLock: now });
-
-      var apiUrl = data.ssApiUrl || DEFAULT_API_URL;
-      var token = data.ssApiToken || DEFAULT_API_TOKEN;
-      if (!apiUrl || !token) return;
-
-      var since = data.ssLastSeen || '';
-      var url = apiUrl + '/api/phantom-logs/?token=' + encodeURIComponent(token);
-      if (since) url += '&since=' + encodeURIComponent(since);
-
-      fetch(url).then(function(r) { return r.json(); }).then(function(logs) {
-        if (!logs || !logs.length) return;
-
-        // Filter out already-seen logs by ID
-        var seenIds = data.ssSeenIds || [];
-        var newLogs = logs.filter(function(l) { return seenIds.indexOf(l.id) === -1; });
-        if (!newLogs.length) return;
-
-        newLogs.forEach(function(log) { showToast(log); });
-
-        // Store the newest timestamp + 1 second to avoid re-fetching the same log
-        var newest = newLogs[0].created_at;
-        var d = new Date(newest.replace(' ', 'T') + '-07:00');
-        d.setSeconds(d.getSeconds() + 1);
-        var bumped = d.toISOString();
-
-        // Keep last 200 seen IDs to prevent duplicates
-        var updatedIds = newLogs.map(function(l) { return l.id; }).concat(seenIds).slice(0, 200);
-        var unseen = (data.ssUnseenCount || 0) + newLogs.length;
-        chrome.storage.local.set({ ssLastSeen: bumped, ssUnseenCount: unseen, ssSeenIds: updatedIds });
-      }).catch(function() { /* silently skip */ });
-    });
-  }
+  // --- Receive shade alerts from background worker (one tab only) ---
+  chrome.runtime.onMessage.addListener(function(msg) {
+    if (msg.type === 'shade-alerts' && msg.logs) {
+      msg.logs.forEach(function(log) { showToast(log); });
+    }
+  });
 
   // --- Init ---
   setInterval(guardCheck, GUARD_POLL_MS);
   guardCheck();
-
-  setInterval(pollShade, SHADE_POLL_MS);
-  setTimeout(pollShade, 2000);
 })();
