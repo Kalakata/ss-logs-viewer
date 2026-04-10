@@ -24,26 +24,6 @@
   50% { opacity: 0.7; }
 }
 
-/* Banner above blocked button */
-.ss-guard-banner {
-  background: #fef2f2;
-  border: 2px solid #ef4444;
-  border-radius: 6px;
-  padding: 8px 14px;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: #991b1b;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.ss-guard-banner::before {
-  content: "\26A0";
-  font-size: 18px;
-}
-
 /* Override button in warning banner */
 .ss-guard-override-btn {
   background: transparent;
@@ -61,40 +41,4 @@
 .ss-guard-override-btn:hover {
   background: #991b1b;
   color: #fff;
-}
-
-/* Shade alert toasts */
-.ss-shade-toast {
-  background: #fff;
-  color: #333;
-  padding: 11px 15px;
-  font-size: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
-  cursor: pointer;
-  animation: ss-toast-in 0.2s ease;
-  border-radius: 3px;
-}
-
-.ss-shade-toast-title {
-  font-weight: 600;
-  font-size: 12px;
-  color: #c0392b;
-  margin-bottom: 3px;
-}
-
-.ss-shade-toast-line {
-  color: #555;
-  line-height: 1.35;
-  font-size: 11px;
-}
-
-.ss-shade-toast-time {
-  color: #999;
-  font-size: 10px;
-  margin-top: 3px;
-}
-
-@keyframes ss-toast-in {
-  from { opacity: 0; transform: translateY(-8px); }
-  to { opacity: 1; transform: translateY(0); }
 }

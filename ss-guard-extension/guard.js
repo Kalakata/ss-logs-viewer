@@ -1,21 +1,11 @@
 /**
- * SoStocked Inventory Guard v2
- *
- * - Monitors work order edit pages, blocks overshipping
- * - Override button lets users proceed intentionally
- * - Polls backend for phantom quantity (shade) alerts
- * - Shows in-page toasts for new detections
+ * SoStocked Inventory Guard
+ * Monitors work order pages, blocks overshipping with override option.
  */
 
-(function ssGuard() {
+(function() {
   'use strict';
 
-  var GUARD_POLL_MS = 400;
-  var SHADE_POLL_MS = 60000;
-  var TOAST_DURATION_MS = 10000;
-  var MAX_TOASTS = 5;
-
-  // --- Guard state ---
   var currentViolations = [];
   var guardOverride = false;
   var overlay = null;
@@ -33,9 +23,7 @@
     var ov = getOverlay();
     ov.textContent = '';
     var box = document.createElement('div');
-    box.style.cssText = 'background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:10px 20px;' +
-      'font-size:14px;color:#991b1b;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.15);pointer-events:auto;' +
-      'display:flex;align-items:center;gap:8px;';
+    box.style.cssText = 'background:#fef2f2;border:2px solid #ef4444;border-radius:8px;padding:10px 20px;font-size:14px;color:#991b1b;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.15);pointer-events:auto;display:flex;align-items:center;gap:8px;';
     var icon = document.createElement('span');
     icon.style.fontSize = '20px';
     icon.textContent = '\u26A0';
@@ -57,9 +45,7 @@
   }
 
   function hideOverlay() {
-    if (overlay && document.body.contains(overlay)) {
-      overlay.textContent = '';
-    }
+    if (overlay && document.body.contains(overlay)) overlay.textContent = '';
   }
 
   function getSaveButton() {
@@ -145,87 +131,6 @@
     }
   }
 
-  // --- Shade alert toasts ---
-  var chimeUrl = '';
-  try { chimeUrl = chrome.runtime.getURL('chime.wav'); } catch(e) {}
-  var toastContainer = null;
-
-  function getToastContainer() {
-    if (toastContainer && document.body.contains(toastContainer)) return toastContainer;
-    toastContainer = document.createElement('div');
-    toastContainer.id = 'ss-shade-toasts';
-    toastContainer.style.cssText = 'position:fixed;top:20px;right:20px;z-index:99998;display:flex;flex-direction:column;gap:8px;max-width:380px;';
-    document.body.appendChild(toastContainer);
-    return toastContainer;
-  }
-
-  function showToast(log) {
-    var container = getToastContainer();
-    if (container.children.length >= MAX_TOASTS) return;
-
-    // Play chime
-    try { new Audio(chimeUrl).play(); } catch(e) {}
-
-    var toast = document.createElement('div');
-    toast.className = 'ss-shade-toast';
-
-    var titleRow = document.createElement('div');
-    titleRow.style.cssText = 'display:flex;justify-content:space-between;align-items:baseline;';
-    var title = document.createElement('span');
-    title.className = 'ss-shade-toast-title';
-    title.textContent = '\u26A0 \u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438 \u0435\u0434\u0438\u043D\u0438\u0446\u0438';
-    titleRow.appendChild(title);
-    var paramVal = document.createElement('span');
-    paramVal.style.cssText = 'font-size:16px;font-weight:800;color:#1e293b;';
-    paramVal.textContent = (log.param_diff > 0 ? '+' : '') + log.param_diff;
-    titleRow.appendChild(paramVal);
-    toast.appendChild(titleRow);
-
-    var line1 = document.createElement('div');
-    line1.className = 'ss-shade-toast-line';
-    line1.textContent = log.description;
-    toast.appendChild(line1);
-
-    var line2 = document.createElement('div');
-    line2.className = 'ss-shade-toast-line';
-    line2.textContent = '\u0420\u0435\u0430\u043B\u043D\u043E: ' + log.real_diff + ' | \u041B\u0438\u043F\u0441\u0432\u0430\u0449\u0438: ' + (log.shade > 0 ? '+' : '') + log.shade;
-    toast.appendChild(line2);
-
-    var timeEl = document.createElement('div');
-    timeEl.className = 'ss-shade-toast-time';
-    timeEl.textContent = relativeTime(log.created_at);
-    toast.appendChild(timeEl);
-
-    toast.addEventListener('click', function() { toast.remove(); });
-
-    container.insertBefore(toast, container.firstChild);
-
-    setTimeout(function() {
-      if (toast.parentElement) toast.remove();
-    }, TOAST_DURATION_MS);
-  }
-
-  function relativeTime(dateStr) {
-    if (!dateStr) return '';
-    var d = new Date(dateStr.replace(' ', 'T') + '-07:00');
-    var diff = Math.floor((Date.now() - d.getTime()) / 60000);
-    if (diff < 1) return '\u043F\u0440\u0435\u0434\u0438 \u043C\u0430\u043B\u043A\u043E';
-    if (diff < 60) return '\u043F\u0440\u0435\u0434\u0438 ' + diff + ' \u043C\u0438\u043D.';
-    var hours = Math.floor(diff / 60);
-    if (hours < 24) return '\u043F\u0440\u0435\u0434\u0438 ' + hours + ' \u0447.';
-    return '\u043F\u0440\u0435\u0434\u0438 ' + Math.floor(hours / 24) + ' \u0434\u043D.';
-  }
-
-  // --- Receive shade alerts from background worker (one tab only) ---
-  try {
-    chrome.runtime.onMessage.addListener(function(msg) {
-      if (msg.type === 'shade-alerts' && msg.logs) {
-        msg.logs.forEach(function(log) { showToast(log); });
-      }
-    });
-  } catch(e) {}
-
-  // --- Init ---
-  setInterval(guardCheck, GUARD_POLL_MS);
+  setInterval(guardCheck, 400);
   guardCheck();
 })();

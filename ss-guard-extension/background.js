@@ -1,76 +1,51 @@
 var API_URL = 'https://srv1563194.hstgr.cloud:4443';
 var API_TOKEN = 'Xg5ci39x_pIQXQzSHPkZtmbpZvL0b_q-sPnRD3kb0vQ';
 
-// Badge management
-chrome.storage.onChanged.addListener(function(changes) {
-  if (changes.ssUnseenCount) {
-    updateBadge(changes.ssUnseenCount.newValue || 0);
-  }
-});
-
+// Badge
 function updateBadge(count) {
-  if (count > 0) {
-    chrome.action.setBadgeText({ text: String(count) });
-    chrome.action.setBadgeBackgroundColor({ color: '#e8353e' });
-  } else {
-    chrome.action.setBadgeText({ text: '' });
-  }
+  chrome.action.setBadgeText({ text: count > 0 ? String(count) : '' });
+  chrome.action.setBadgeBackgroundColor({ color: '#e8353e' });
 }
 
-// Set badge on startup
+chrome.storage.onChanged.addListener(function(changes) {
+  if (changes.ssUnseenCount) updateBadge(changes.ssUnseenCount.newValue || 0);
+});
+
 chrome.storage.local.get(['ssUnseenCount'], function(data) {
   updateBadge(data.ssUnseenCount || 0);
 });
 
-// Clear stale state on install/update so notifications work fresh
+// Clear state on install/update
 chrome.runtime.onInstalled.addListener(function() {
-  chrome.storage.local.remove(['ssLastSeen', 'ssSeenIds', 'ssUnseenCount', 'ssPollLock']);
+  chrome.storage.local.remove(['ssLastSeen', 'ssSeenIds', 'ssUnseenCount']);
   pollShade();
 });
 
-// Use chrome.alarms for reliable recurring polls
+// Poll every minute
 chrome.alarms.create('shade-poll', { periodInMinutes: 1 });
-
 chrome.alarms.onAlarm.addListener(function(alarm) {
   if (alarm.name === 'shade-poll') pollShade();
 });
 
 function pollShade() {
-  console.log('[Guard] polling...');
   chrome.storage.local.get(['ssLastSeen', 'ssUnseenCount', 'ssSeenIds'], function(data) {
     var since = data.ssLastSeen || '';
     var url = API_URL + '/api/phantom-logs/?token=' + encodeURIComponent(API_TOKEN);
     if (since) url += '&since=' + encodeURIComponent(since);
 
     fetch(url).then(function(r) { return r.json(); }).then(function(logs) {
-      console.log('[Guard] API returned ' + (logs ? logs.length : 0) + ' logs');
       if (!logs || !logs.length) return;
 
       var seenIds = data.ssSeenIds || [];
       var newLogs = logs.filter(function(l) { return seenIds.indexOf(l.id) === -1; });
-      console.log('[Guard] new logs: ' + newLogs.length + ' (seen: ' + seenIds.length + ')');
       if (!newLogs.length) return;
 
-      // Update storage
       var newest = newLogs[0].created_at;
       var d = new Date(newest.replace(' ', 'T') + '-07:00');
       d.setSeconds(d.getSeconds() + 1);
-      var bumped = d.toISOString();
       var updatedIds = newLogs.map(function(l) { return l.id; }).concat(seenIds).slice(0, 200);
       var unseen = (data.ssUnseenCount || 0) + newLogs.length;
-      chrome.storage.local.set({ ssLastSeen: bumped, ssUnseenCount: unseen, ssSeenIds: updatedIds });
-
-      // Send to one SoStocked tab for toast display
-      chrome.tabs.query({ url: 'https://app.sostocked.com/*' }, function(tabs) {
-        console.log('[Guard] found ' + tabs.length + ' SoStocked tabs');
-        if (tabs.length > 0) {
-          chrome.tabs.sendMessage(tabs[0].id, { type: 'shade-alerts', logs: newLogs }).catch(function(e) {
-            console.log('[Guard] sendMessage failed:', e.message);
-          });
-        }
-      });
-    }).catch(function(e) {
-      console.log('[Guard] poll error:', e.message);
-    });
+      chrome.storage.local.set({ ssLastSeen: d.toISOString(), ssUnseenCount: unseen, ssSeenIds: updatedIds });
+    }).catch(function() {});
   });
 }

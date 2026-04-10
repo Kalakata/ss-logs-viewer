@@ -3,7 +3,7 @@
   "name": "SoStocked Inventory Guard",
   "version": "2.0",
   "description": "Inventory guard + phantom quantity alerts for SoStocked",
-  "permissions": ["storage", "tabs", "alarms"],
+  "permissions": ["storage", "alarms"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -25,11 +25,5 @@
   },
   "background": {
     "service_worker": "background.js"
-  },
-  "web_accessible_resources": [
-    {
-      "resources": ["chime.wav"],
-      "matches": ["https://app.sostocked.com/*"]
-    }
-  ]
+  }
 }
