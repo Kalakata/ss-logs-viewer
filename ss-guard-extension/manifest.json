@@ -1,9 +1,16 @@
 {
   "manifest_version": 3,
   "name": "SoStocked Inventory Guard",
-  "version": "1.0",
-  "description": "Prevents shipping more units than available inventory on SoStocked work orders",
-  "permissions": [],
+  "version": "2.0",
+  "description": "Inventory guard + phantom quantity alerts for SoStocked",
+  "permissions": ["storage"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
   "content_scripts": [
     {
       "matches": ["https://app.sostocked.com/*"],
