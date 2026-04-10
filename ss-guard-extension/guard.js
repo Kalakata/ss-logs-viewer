@@ -71,7 +71,7 @@
   }
 
   function guardCheck() {
-    if (!location.pathname.includes('/orders/') || !location.pathname.includes('/edit/')) {
+    if (!location.pathname.includes('/orders/') || (!location.pathname.includes('/edit/') && !location.pathname.includes('/add/'))) {
       hideOverlay();
       return;
     }
