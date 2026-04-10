@@ -146,7 +146,8 @@
   }
 
   // --- Shade alert toasts ---
-  var chimeUrl = chrome.runtime.getURL('chime.wav');
+  var chimeUrl = '';
+  try { chimeUrl = chrome.runtime.getURL('chime.wav'); } catch(e) {}
   var toastContainer = null;
 
   function getToastContainer() {
@@ -216,11 +217,13 @@
   }
 
   // --- Receive shade alerts from background worker (one tab only) ---
-  chrome.runtime.onMessage.addListener(function(msg) {
-    if (msg.type === 'shade-alerts' && msg.logs) {
-      msg.logs.forEach(function(log) { showToast(log); });
-    }
-  });
+  try {
+    chrome.runtime.onMessage.addListener(function(msg) {
+      if (msg.type === 'shade-alerts' && msg.logs) {
+        msg.logs.forEach(function(log) { showToast(log); });
+      }
+    });
+  } catch(e) {}
 
   // --- Init ---
   setInterval(guardCheck, GUARD_POLL_MS);
