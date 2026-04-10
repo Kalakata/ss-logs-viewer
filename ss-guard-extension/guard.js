@@ -131,8 +131,8 @@
     icon.textContent = '\u26A0';
     box.appendChild(icon);
     var msg = document.createElement('span');
-    msg.textContent = count + (count === 1 ? ' product' : ' products') +
-      ' shipping more units than available inventory. Fix before saving.';
+    msg.textContent = count + (count === 1 ? ' продукт' : ' продукта') +
+      ' с повече единици от наличните. Коригирайте преди запис.';
     box.appendChild(msg);
     ov.appendChild(box);
   }
