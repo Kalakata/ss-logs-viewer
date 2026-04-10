@@ -107,6 +107,10 @@ def explorer(request):
     if request.GET.get('export') == 'csv':
         return _export_csv(qs)
 
+    # --- Date range of full result set ---
+    first_date = qs.values_list('created_at', flat=True).first() or ''
+    last_date = qs.values_list('created_at', flat=True).last() or ''
+
     # --- Paginate ---
     paginator = Paginator(qs, PAGE_SIZE)
     page_obj = paginator.get_page(page_num)
@@ -182,6 +186,8 @@ def explorer(request):
         'f_type': type_filter,
         'f_user': user_filter,
         'f_phantom': phantom_filter,
+        'first_date': first_date,
+        'last_date': last_date,
     })
 
 
@@ -235,6 +241,10 @@ def movements(request):
     # --- CSV export ---
     if request.GET.get('export') == 'csv':
         return _export_csv(qs)
+
+    # --- Date range of full result set ---
+    first_date = qs.values_list('created_at', flat=True).first() or ''
+    last_date = qs.values_list('created_at', flat=True).last() or ''
 
     # --- Movement detection on FULL filtered queryset (not page-scoped) ---
     all_rows = list(qs.values_list('ss_id', 'created_at', 'asin', 'param_diff'))
@@ -346,6 +356,8 @@ def movements(request):
         'f_to': date_to,
         'f_user': user_filter,
         'f_phantom': phantom_filter,
+        'first_date': first_date,
+        'last_date': last_date,
     })
 
 

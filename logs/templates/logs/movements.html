@@ -132,8 +132,10 @@
   </tbody>
 </table>
 
-{% if page_obj.paginator.num_pages > 1 %}
 <div class="pagination-bar">
+  {% if first_date %}<span style="color:#888;font-size:11px;" class="ss-date" data-raw="{{ last_date }}">{{ last_date }}</span><span style="color:#aaa;font-size:11px;">&ndash;</span><span style="color:#888;font-size:11px;" class="ss-date" data-raw="{{ first_date }}">{{ first_date }}</span>{% endif %}
+  {% if page_obj.paginator.num_pages > 1 %}
+  <span style="color:#ddd;">|</span>
   {% if page_obj.has_previous %}
     <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page=1">&laquo; First</a>
     <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.previous_page_number }}">&lsaquo; Prev</a>
@@ -143,8 +145,8 @@
   {% if page_obj.has_next %}
     <a href="?{{ filter_qs }}{% if filter_qs %}&{% endif %}page={{ page_obj.next_page_number }}">Next &rsaquo;</a>
   {% endif %}
+  {% endif %}
 </div>
-{% endif %}
 </div><!-- .table-wrap -->
 
 {% else %}
