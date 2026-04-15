@@ -276,13 +276,25 @@ document.querySelectorAll('.review-chk').forEach(function(chk) {
 
   tbody.addEventListener('mousedown', function(e) {
     // Click on ASIN or shipment ID → copy to clipboard, don't select row
+    var asinEl = e.target.closest('.asin-tag');
+    if (asinEl) {
+      e.preventDefault();
+      e.stopPropagation();
+      var asin = asinEl.dataset.copy;
+      navigator.clipboard.writeText(asin);
+      asinEl.classList.remove('copied-flash');
+      void asinEl.offsetWidth;
+      asinEl.classList.add('copied-flash');
+      window.open('https://app.sostocked.com/me/logs?page=1&per_page=50&order_direction=ASC&page_view_id=138321&filters[0][x]=AND&filters[0][c]=product_asin&filters[0][o]=EQUAL&filters[0][v]=' + encodeURIComponent(asin), '_blank');
+      return;
+    }
     var copyEl = e.target.closest('[data-copy]');
     if (copyEl) {
       e.preventDefault();
       e.stopPropagation();
       navigator.clipboard.writeText(copyEl.dataset.copy);
       copyEl.classList.remove('copied-flash');
-      void copyEl.offsetWidth; // reflow to restart animation
+      void copyEl.offsetWidth;
       copyEl.classList.add('copied-flash');
       return;
     }
