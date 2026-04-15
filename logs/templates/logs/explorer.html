@@ -61,7 +61,8 @@
   .type-tag { display: inline-block; padding: 0 4px; border-radius: 2px; background: #f1f5f9; color: #475569; font-size: 11px; }
   .qty-change { color: #888; font-size: 11px; }
   .wh-name { font-size: 11px; color: #7c3aed; }
-  .desc { color: #666; word-break: break-word; max-width: 300px; }
+  .desc { color: #666; word-break: break-word; max-width: 500px; }
+  .prod { font-size: 11px; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   .pagination-bar { padding: 8px 12px; display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 12px; color: #555; border-top: 1px solid #ddd; background: #fff; }
   .pagination-bar a { color: #1e40af; text-decoration: none; padding: 2px 8px; border: 1px solid #ccc; border-radius: 3px; }
@@ -151,11 +152,11 @@
       <td style="text-align:right;" class="units-cell {% if log.param_diff > 0 %}diff-pos{% elif log.param_diff < 0 %}diff-neg{% else %}diff-zero{% endif %}">{% if log.param_diff > 0 %}+{% endif %}{{ log.param_diff }}{% if log.bundle_qty > 1 %}<span class="raw-diff">({% if log.units > 0 %}+{% endif %}{{ log.units }})</span>{% endif %}{% if log.shade %}<span class="shade-val">real:{% if log.real_diff > 0 %}+{% endif %}{{ log.real_diff }}</span>{% endif %}</td>
       <td style="text-align:center;color:#888;font-size:11px;">x{{ log.bundle_qty }}</td>
       <td class="qty-change">{% if log.old_qty != None and log.new_qty != None %}{{ log.old_qty }}&rarr;{{ log.new_qty }}{% endif %}</td>
-      <td style="font-size:11px;" title="{{ log.product_name }}">{{ log.product_name|truncatechars:80 }}</td>
+      <td class="prod" title="{{ log.product_name }}">{{ log.product_name|truncatechars:30 }}</td>
       <td><span class="wh-name">{{ log.vendor_name }}</span></td>
       <td style="font-size:10px;color:#666;white-space:nowrap;">{% if log.order_shipment_id %}<span class="shipment-tag" data-copy="{{ log.order_shipment_id }}">#{{ log.order_shipment_id }}</span>{% endif %}</td>
       <td style="white-space:nowrap;">{{ log.user_name }}</td>
-      <td class="desc" title="{{ log.description }}">{{ log.description|truncatechars:40 }}</td>
+      <td class="desc" title="{{ log.description }}">{{ log.description|truncatechars:120 }}</td>
     </tr>
     {% endfor %}
   </tbody>
