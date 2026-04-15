@@ -10,7 +10,7 @@ from django.db.models import F, Q
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 
 from .models import Product, SoStockedLog
 from django.conf import settings
@@ -157,6 +157,7 @@ def explorer(request):
             'bundle_qty': bq,
             'units': (row.param_diff or 0) * bq,
             'shade': (row.param_diff or 0) - (row.real_diff or 0),
+            'reviewed': row.reviewed,
         })
 
     # Build query string without page param for pagination links
@@ -498,3 +499,25 @@ def phantom_api(request):
     response = JsonResponse(logs, safe=False)
     response['Access-Control-Allow-Origin'] = '*'
     return response
+
+
+@csrf_exempt
+@require_POST
+def toggle_reviewed(request):
+    """Toggle the reviewed flag on a phantom log."""
+    import json
+    try:
+        body = json.loads(request.body)
+        ss_id = body.get('ss_id')
+        reviewed = body.get('reviewed')
+    except (json.JSONDecodeError, AttributeError):
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    if ss_id is None or reviewed is None:
+        return JsonResponse({'error': 'Missing ss_id or reviewed'}, status=400)
+
+    updated = SoStockedLog.objects.filter(ss_id=ss_id).update(reviewed=bool(reviewed))
+    if not updated:
+        return JsonResponse({'error': 'Not found'}, status=404)
+
+    return JsonResponse({'ok': True, 'ss_id': ss_id, 'reviewed': bool(reviewed)})

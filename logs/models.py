@@ -75,6 +75,7 @@ class SoStockedLog(models.Model):
     product_name = models.CharField(max_length=500, blank=True, default='')
     order_shipment_id = models.CharField(max_length=50, blank=True, default='')
     type_id = models.IntegerField(default=0, db_index=True)
+    reviewed = models.BooleanField(default=False)
 
     class Meta:
         indexes = [

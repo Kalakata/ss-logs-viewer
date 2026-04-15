@@ -69,6 +69,11 @@
   .pagination-bar .current { font-weight: 600; }
 
   .empty-state { padding: 40px; text-align: center; color: #999; font-size: 13px; }
+
+  .review-chk { width: 14px; height: 14px; cursor: pointer; accent-color: #8b5cf6; }
+  .logs-table th.col-review, .logs-table td.col-review { width: 28px; text-align: center; padding: 2px 4px; }
+  .logs-table tbody tr.row-reviewed > td { opacity: 0.5; }
+  .logs-table tbody tr.row-reviewed:hover > td { opacity: 0.7; }
 </style>
 {% endblock %}
 
@@ -122,6 +127,7 @@
 <table class="logs-table">
   <thead>
     <tr>
+      <th class="col-review"></th>
       <th>Date</th>
       <th>ASIN</th>
       <th>Type</th>
@@ -137,7 +143,8 @@
   </thead>
   <tbody>
     {% for log in logs %}
-    <tr data-units="{{ log.param_diff }}" data-asin="{{ log.filter_asin }}" {% if log.shade %}class="row-phantom"{% endif %}>
+    <tr data-units="{{ log.param_diff }}" data-asin="{{ log.filter_asin }}" data-ssid="{{ log.id }}" {% if log.shade and log.reviewed %}class="row-phantom row-reviewed"{% elif log.shade %}class="row-phantom"{% elif log.reviewed %}class="row-reviewed"{% endif %}>
+      <td class="col-review"><input type="checkbox" class="review-chk" {% if log.reviewed %}checked{% endif %}></td>
       <td style="white-space:nowrap;color:#555;" class="ss-date" data-raw="{{ log.created_at }}">{{ log.created_at }}</td>
       <td><span class="asin-tag" data-copy="{{ log.filter_asin }}">{{ log.filter_asin }}</span></td>
       <td><span class="type-tag">{{ log.type_label }}</span></td>
@@ -198,6 +205,22 @@ document.querySelectorAll('.ss-date').forEach(function(el) {
   var pad = function(n) { return n < 10 ? '0' + n : n; };
   el.textContent = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
     + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+});
+
+// --- Reviewed toggle ---
+document.querySelectorAll('.review-chk').forEach(function(chk) {
+  chk.addEventListener('change', function() {
+    var tr = chk.closest('tr');
+    var ssId = tr.dataset.ssid;
+    var reviewed = chk.checked;
+    tr.classList.toggle('row-reviewed', reviewed);
+    fetch('/api/toggle-reviewed/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ss_id: parseInt(ssId, 10), reviewed: reviewed})
+    });
+  });
+  chk.addEventListener('mousedown', function(e) { e.stopPropagation(); });
 });
 
 // --- Row selection for net unit calculation ---
